@@ -48,6 +48,22 @@ uv pip install torch torchvision torchaudio
 uv pip install flash-attn --no-build-isolation
 ```
 
+## Models
+
+For GroundingDINO, we can use **GroundingDINO-T** finetuned on COCO (57.3 mAP) or the official pretrained checkpoints.
+
+| Name | Pretrain Data | Task | mAP (COCO) | Checkpoint | Misc |
+|-----|-----|-----|-----|-----|-----|
+| GroundingDINO-T (official) | O365, GoldG, Cap4M | zero-shot | 48.4 | model | - |
+| GroundingDINO-T (fine-tune) | O365, GoldG, Cap4M | finetune w/ COCO | 57.3 | model | cfg \| log |
+| GroundingDINO-T (pretrain) | COCO, O365, LVIS, V3Det, GRIT-200K, Flickr30k (1.8M) | zero-shot | 55.1 | model | cfg \| log |
+
+Training configs and logs available here:  
+https://github.com/longzw1997/Open-GroundingDino/tree/main?tab=readme-ov-file#training
+
+Original GroundingDINO checkpoints:  
+https://github.com/IDEA-Research/GroundingDINO?tab=readme-ov-file#luggage-checkpoints
+
 ## Results
 Model performance comparison (mean ± std across three runs):
 

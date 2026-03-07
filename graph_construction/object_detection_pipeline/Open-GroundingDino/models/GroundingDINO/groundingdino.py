@@ -316,7 +316,6 @@ class GroundingDINO(nn.Module):
             srcs, masks, input_query_bbox, poss, input_query_label, attn_mask, text_dict
         )
 
-        
         # deformable-detr-like anchor update
         outputs_coord_list = []
         for dec_lid, (layer_ref_sig, layer_bbox_embed, layer_hs) in enumerate(
@@ -337,6 +336,9 @@ class GroundingDINO(nn.Module):
         )
 
         out = {"pred_logits": outputs_class[-1], "pred_boxes": outputs_coord_list[-1]}
+        
+        # Add bounding box features from the last decoder layer
+        out['bounding_boxes_features'] = hs[-1]
 
         # Used to calculate losses
         bs, len_td = text_dict['text_token_mask'].shape
@@ -359,35 +361,6 @@ class GroundingDINO(nn.Module):
             interm_class = self.transformer.enc_out_class_embed(hs_enc[-1], text_dict)
             out['interm_outputs'] = {'pred_logits': interm_class, 'pred_boxes': interm_coord}
             out['interm_outputs_for_matching_pre'] = {'pred_logits': interm_class, 'pred_boxes': init_box_proposal}
-
-        # outputs['pred_logits'].shape
-        # torch.Size([4, 900, 256])
-
-        # outputs['pred_boxes'].shape
-        # torch.Size([4, 900, 4])
-
-        # outputs['text_mask'].shape
-        # torch.Size([256])
-
-        # outputs['text_mask']
-
-        # outputs['aux_outputs'][0].keys()
-        # dict_keys(['pred_logits', 'pred_boxes', 'one_hot', 'text_mask'])
-
-        # outputs['aux_outputs'][img_idx]
-
-        # outputs['token']
-        # <class 'transformers.tokenization_utils_base.BatchEncoding'>
-
-        # outputs['interm_outputs'].keys()
-        # dict_keys(['pred_logits', 'pred_boxes', 'one_hot', 'text_mask'])
-
-
-        # outputs['interm_outputs_for_matching_pre'].keys()
-        # dict_keys(['pred_logits', 'pred_boxes'])
-
-        # outputs['one_hot'].shape
-        # torch.Size([4, 900, 256])
 
         return out
 
