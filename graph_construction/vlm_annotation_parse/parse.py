@@ -111,7 +111,6 @@ def check_if_obj(token):
                 return str(token)
             if head.dep_ == "pobj" and head.head.dep_ == "prep":
                 return str(token)
-            # also common: conj under another noun in a PP chain
             if head.dep_ in ("pobj", "conj"):
                 return str(token)
 

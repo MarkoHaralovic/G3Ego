@@ -11,6 +11,38 @@ We propose a graph-based framework for activity recognition in egocentric videos
 
 Our pruning strategy can be viewed as improving global communication in the graph by shortening the longest path between key entities.
 
+## Installation
+
+Create environment
+```bash
+conda create -n ego_graphs python=3.10
+conda activate ego_graphs
+```
+
+Install main requirements
+```bash
+pip install uv
+cd /home/s3758869/egocentric_video_graph_framework_ar
+uv pip install -r requirements.txt
+```
+
+Install Open-GroundingDino requirements
+```bash
+uv pip install -r graph_construction/object_detection_pipeline/Open-GroundingDino/requirements.txt
+```
+
+```bash
+cd graph_construction/object_detection_pipeline/Open-GroundingDino/models/GroundingDINO/ops
+python setup.py build install
+python test.py
+```
+
+**Note:** If `flash-attn` installation fails during step 3, install it separately after PyTorch (assuming you have a GPU and CUDA platform)
+```bash
+uv pip install torch torchvision torchaudio
+uv pip install flash-attn --no-build-isolation
+```
+
 ## Results
 Model performance comparison (mean ± std across three runs):
 

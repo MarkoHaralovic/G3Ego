@@ -1,6 +1,6 @@
 projectaria_tools
 numpy
-opencv - python
+opencv-python
 torch
 torchaudio
 torchvision
@@ -9,13 +9,11 @@ transformers
 tqdm
 pandas
 pillow
-flash - attn
 bitsandbytes
-torch - geometric
+torch-geometric
 addict
 pycocotools
 supervision
 yapf
-paddleocr
 lap
 lapx
