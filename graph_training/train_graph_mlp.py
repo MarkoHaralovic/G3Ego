@@ -22,7 +22,7 @@ from train.train import do_epoch
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("config_path")
+    parser.add_argument("--config-path", type=str, help="Path to the experiment config JSON file")
     args = parser.parse_args()
     config_path = args.config_path
 

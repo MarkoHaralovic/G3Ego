@@ -17,3 +17,5 @@ supervision
 yapf
 lap
 lapx
+spacy
+scikit-learn

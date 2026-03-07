@@ -130,7 +130,7 @@ class ActionGraphEmbedding(nn.Module):
             + attr_out
             + rel_out
             + (k_trip * trip_out if self.use_triplets else 0)
-            + clip_text_emb_out_feats if self.use_clip_text_emb else None
+            + (clip_text_emb_out_feats if self.use_clip_text_emb else 0)
         )
 
     def forward(self, g: Dict[str, torch.Tensor]) -> torch.Tensor:
@@ -162,7 +162,7 @@ class ActionGraphEmbedding(nn.Module):
             obj_tokens = torch.cat([obj_feats, obj_ids.to(obj_feats.dtype)], dim=-1)
         obj_vec = self.obj_pool(obj_tokens)
 
-        if self.use_clip_text_emb is not None:
+        if self.use_clip_text_emb:
             text_embds = g["node_text_embs"].to(self.device)
             text_embedding_vec = self.clip_text_embedding_pooling(text_embds)
             
@@ -263,6 +263,7 @@ class GraphMLP(nn.Module):
         self.graph_emb_dim = (
             graph_emb_dim if use_proj else self.action_graph_embedder.out_dim
         )
+
         if self.proj:
             self.graph_proj = [
                 nn.Linear(self.input_dim, self.graph_emb_dim),

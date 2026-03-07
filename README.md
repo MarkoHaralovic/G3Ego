@@ -26,6 +26,11 @@ cd /home/s3758869/egocentric_video_graph_framework_ar
 uv pip install -r requirements.txt
 ```
 
+Download spaCy language model
+```bash
+python -m spacy download en_core_web_sm
+```
+
 Install Open-GroundingDino requirements
 ```bash
 uv pip install -r graph_construction/object_detection_pipeline/Open-GroundingDino/requirements.txt

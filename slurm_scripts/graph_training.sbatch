@@ -13,10 +13,8 @@ export HTTPS_PROXY="http://proxy.utwente.nl:3128"
 export http_proxy="http://proxy.utwente.nl:3128"
 export https_proxy="http://proxy.utwente.nl:3128"
 
-source /home/s3758869/video_surgical/bin/activate
+conda activate ego_graphs
 
-cd /home/s3758869/surgical_video_assessment
-python scripts/tapis_inference.py \
-  --input-dir /home/s3758869/surgical_video_assessment/turbo_data/VideoAI \
-  --video-name e1308a6d-2a86-4f29-8dd7-c5259bd04539_1556272 \
-  --output-dir /home/s3758869/surgical_video_assessment/daVinci_tool_detection/tool_predictions/grasp/e1308a6d-2a86-4f29-8dd7-c5259bd04539_1556272
+cd /home/s3758869/egocentric_video_graph_framework_ar
+python graph_training/train_graph_mlp.py \
+  --config-path /home/s3758869/egocentric_video_graph_framework_ar/graph_training/configs/fasg_run_config.json
