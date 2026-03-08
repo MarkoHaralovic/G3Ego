@@ -19,9 +19,9 @@ cd /home/s3758869/egocentric_video_graph_framework_ar/vlm_annotation
 
 
 # LLaVA-v1.6-34B
-python vlm_annotation_pipeline.py \
-  --config llava16/configs/llava_v1_6_34b.json
-
-# Qwen3-VL-30B-A3B-Instruct
 # python vlm_annotation_pipeline.py \
-#   --config qwen35vl/configs/qwen3_vl_30b.json
+#   --config llava16/configs/llava_v1_6_34b.json
+
+# Qwen/Qwen3-VL-32B-Instruct
+python vlm_annotation_pipeline.py \
+  --config qwen35vl/configs/qwen3_vl_32b_instruct.json

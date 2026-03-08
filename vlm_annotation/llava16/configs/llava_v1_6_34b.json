@@ -2,6 +2,7 @@
     "vlm_module": "llava16.llava",
     "prompts_file": "llava16/prompts.json",
 
+    "model_id": "llava16_34b",
     "model_name": "llava-v1.6-34b-hf",
     "model_path": "/home/s3758869/models/llava-v1.6-34b-hf",
     "model_cache_dir": "/home/s3758869/models",
