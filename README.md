@@ -54,9 +54,10 @@ For GroundingDINO, we can use **GroundingDINO-T** finetuned on COCO (57.3 mAP) o
 
 | Name | Pretrain Data | Task | mAP (COCO) | Checkpoint | Misc |
 |-----|-----|-----|-----|-----|-----|
-| GroundingDINO-T (official) | O365, GoldG, Cap4M | zero-shot | 48.4 | model | - |
-| GroundingDINO-T (fine-tune) | O365, GoldG, Cap4M | finetune w/ COCO | 57.3 | model | cfg \| log |
-| GroundingDINO-T (pretrain) | COCO, O365, LVIS, V3Det, GRIT-200K, Flickr30k (1.8M) | zero-shot | 55.1 | model | cfg \| log |
+| GroundingDINO-T (official) | O365, GoldG, Cap4M | zero-shot | 48.4 | [GitHub](https://github.com/IDEA-Research/GroundingDINO/releases/download/v0.1.0-alpha/groundingdino_swint_ogc.pth) \| [HF](https://huggingface.co/ShilongLiu/GroundingDINO/resolve/main/groundingdino_swint_ogc.pth) | - |
+| GroundingDINO-T (fine-tune) | O365, GoldG, Cap4M | finetune w/ COCO | 57.3 | [model](https://github.com/longzw1997/Open-GroundingDino/releases/download/v0.1.0/gdinot-coco-ft.pth) | [cfg](https://drive.google.com/file/d/1TJRAiBbVwj3AfxvQAoi1tmuRfXH1hLie/view?usp=drive_link) \| log |
+| GroundingDINO-T (pretrain) | COCO, O365, LVIS, V3Det, GRIT-200K, Flickr30k (1.8M) | zero-shot | 55.1 | [model](https://github.com/longzw1997/Open-GroundingDino/releases/download/v0.1.0/gdinot-1.8m-odvg.pth) | [cfg](https://drive.google.com/file/d/1LwtkvBHkP1OkErKBsVfwjcedVXkyocA5/view?usp=drive_link) \| log |
+| GroundingDINO-B (official) | COCO, O365, GoldG, Cap4M, OpenImage, ODinW-35, RefCOCO | zero-shot | 56.7 | [GitHub](https://github.com/IDEA-Research/GroundingDINO/releases/download/v0.1.0-alpha2/groundingdino_swinb_cogcoor.pth) \| [HF](https://huggingface.co/ShilongLiu/GroundingDINO/resolve/main/groundingdino_swinb_cogcoor.pth) | [cfg](graph_construction/object_detection_pipeline/Open-GroundingDino/tools/GroundingDINO_SwinB_cfg.py) |
 
 Training configs and logs available here:  
 https://github.com/longzw1997/Open-GroundingDino/tree/main?tab=readme-ov-file#training

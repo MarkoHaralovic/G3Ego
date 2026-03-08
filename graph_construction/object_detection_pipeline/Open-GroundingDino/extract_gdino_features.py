@@ -161,8 +161,18 @@ def gazed_at_object(boxes_filt, pred_phrases, boxes_features_filt, frame_gaze, i
         min_idx = distances_object_gaze.index(min(distances_object_gaze))
         return pred_phrases[min_idx], boxes_features_filt[min_idx], min_idx
     
+def get_model_variant(config_file):
+    config_name = os.path.basename(config_file).lower()
+    if "swinb" in config_name:
+        return "gdino_base"
+    else:
+        return "gdino_tiny"
+
 def inference(args):
     logger = logging.getLogger('GroundingDINO')
+    
+    model_variant = get_model_variant(args.config_file)
+    print(f"Detected model variant: {model_variant}")
     
     #load the model
     model = load_model(args.config_file, args.model_checkpoint_path, args.device)
@@ -274,7 +284,7 @@ def inference(args):
                 }
             }
 
-        output_path = os.path.join(scene_path, "grounding_results.pkl")
+        output_path = os.path.join(scene_path, f"grounding_results_{model_variant}.pkl")
         with open(output_path, 'wb') as f:
             pickle.dump(groundings, f)
         print(f"\nResults saved to {output_path}")

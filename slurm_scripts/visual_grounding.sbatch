@@ -18,5 +18,18 @@ cd graph_construction/object_detection_pipeline/Open-GroundingDino/models/Ground
 python setup.py build install
 python test.py
 
-cd /home/s3758869/egocentric_video_graph_framework_ar
-python graph_training/train_graph_mlp.py 
+cd /home/s3758869/egocentric_video_graph_framework_ar/graph_construction/object_detection_pipeline/Open-GroundingDino
+
+# running Grounding DINO Tiny
+python extract_gdino_features.py  \
+    -c tools/GroundingDINO_SwinT_OGC.py   \
+    -p /home/s3758869/egocentric_video_graph_framework_ar/graph_construction/object_detection_pipeline/Open-GroundingDino/weights/gdinot-1.8m-odvg.pth   \
+    -i /home/s3758869/vlm_datasets/AriaEA_vlm_ann_3_10_llava-v1.6-34b-hf   \
+    --device cuda
+
+# running Grounding DINO Base
+python extract_gdino_features.py  \
+    -c tools/GroundingDINO_SwinB_cfg.py   \
+    -p /home/s3758869/egocentric_video_graph_framework_ar/graph_construction/object_detection_pipeline/Open-GroundingDino/weights/groundingdino_swinb_cogcoor.pth  \
+    -i /home/s3758869/vlm_datasets/aaa \
+    --device cuda
