@@ -55,13 +55,9 @@ def get_object_idxs(frame_objects_dict, object_to_idx_map):
     return object_indexes
 
 def prepare_caption(frame_objects_dict):
-    caption = ""
-    for base_object_att, base_attr_map in frame_objects_dict.items():
-        caption += base_object_att + ", "
-    caption = caption.strip(", ")
-    if not caption.endswith("."):
-        caption = caption + "."
-    return caption
+    # GroundingDINO uses '. ' as separator between object classes in the text prompt
+    caption = " . ".join(frame_objects_dict.keys()) + "."
+    return caption.lower()
 
 def filter_predictions(outputs, box_threshold, text_threshold, tokenizer, caption, apply_nms=False):
     logits = outputs["pred_logits"].sigmoid()[0]  # (nq, 256)
@@ -85,7 +81,7 @@ def filter_predictions(outputs, box_threshold, text_threshold, tokenizer, captio
     pred_phrases = []
     for logit in logits_filt:
         pred_phrase = get_phrases_from_posmap(logit > text_threshold, tokenized, tokenizer)
-        pred_phrases.append(pred_phrase)
+        pred_phrases.append(pred_phrase.strip())
 
     if apply_nms and len(boxes_filt) > 0:
         scores = logits_filt.max(dim=1)[0]
@@ -217,7 +213,7 @@ def inference(args):
 
             with torch.no_grad():
                 outputs = model(image[None], captions=[caption])
-                
+            
             boxes_filt, pred_phrases, boxes_features_filt, logits_filt = filter_predictions(
                 outputs, args.box_threshold, args.text_threshold, model.tokenizer, caption, args.apply_nms
             )
@@ -231,7 +227,7 @@ def inference(args):
                 merged_boxes = torch.stack([merged[p][0] for p in merged_phrases])
                 merged_features = torch.stack([merged[p][1] for p in merged_phrases])
             else:
-                merged_boxes = boxes_filt[:0]   # empty tensor with correct shape
+                merged_boxes = boxes_filt[:0]  
                 merged_features = boxes_features_filt[:0]
             
             # filter gaze to current frame
@@ -241,24 +237,32 @@ def inference(args):
                 merged_boxes, merged_phrases, merged_features, frame_gaze, image_pil.size
             )
             
-            # map gazed phrase back to object index via base_object
-            if gazed_phrase is not None and gazed_phrase in image_all_objects:
-                gazed_base = image_all_objects[gazed_phrase]["base_object"]
-                gazed_idx = general_object_mapping[gazed_base]
-            else:
-                gazed_idx = None
+            # map gazed phrase back to object index
+            gazed_idx = None
+            if gazed_phrase is not None:
+                for ann_name, ann_info in image_all_objects.items():
+                    if ann_name.lower() == gazed_phrase.lower():
+                        gazed_idx = general_object_mapping[ann_info["base_object"]]
+                        break
             
-            # build objects dict keyed by compound name (e.g. "pink door", "black door")
-            # each gets its own averaged feature; idx refers to the base object
             objects_dict = {}
+
+            merged_lower = {k.lower(): v for k, v in merged.items()}
             for obj_name, obj_base_attr in image_all_objects.items():
                 obj_idx = general_object_mapping[obj_base_attr['base_object']]
-                if obj_name in merged:
-                    bbox, feat, conf = merged[obj_name]
+                obj_name_lower = obj_name.lower()
+                if obj_name_lower in merged_lower:
+                    bbox, feat, conf = merged_lower[obj_name_lower]
                     objects_dict[obj_idx] = {
                         'feats': feat,
                         'phrase': obj_name,
                         'confidence': conf
+                    }
+                else:
+                    objects_dict[obj_idx] = {
+                        'feats': None,
+                        'phrase': obj_name,
+                        'confidence': 0.0
                     }
             
             groundings[image_name] = {
@@ -275,16 +279,13 @@ def inference(args):
             pickle.dump(groundings, f)
         print(f"\nResults saved to {output_path}")
         
-        import sys
-        sys.exit()
-        
 def get_args_parser():
     parser = argparse.ArgumentParser('Set transformer detector', add_help=False)
     parser.add_argument('--config_file', '-c', type=str, required=True)
     parser.add_argument('--model_checkpoint_path', '-p', type=str, required=True)
     parser.add_argument('--dataset_dir', '-i', type=str, required=True)
-    parser.add_argument('--box_threshold', type=float, default=0.15, help="box threshold")
-    parser.add_argument('--text_threshold', type=float, default=0.1, help="text threshold")
+    parser.add_argument('--box_threshold', type=float, default=0.3, help="box threshold")
+    parser.add_argument('--text_threshold', type=float, default=0.15, help="text threshold")
     parser.add_argument("--apply-nms", type=bool, default=False, help="whether to use NMS or not")
     parser.add_argument("--device", type=str, default="cuda", help="device to use for inference")
     return parser
