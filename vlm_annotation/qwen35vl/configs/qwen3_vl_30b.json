@@ -1,0 +1,26 @@
+{
+    "vlm_module": "qwen35vl.qwen35vl",
+    "prompts_file": "qwen35vl/prompts.json",
+
+    "model_name": "Qwen3-VL-30B-A3B-Instruct",
+    "model_path": "Qwen/Qwen3-VL-30B-A3B-Instruct",
+    "model_cache_dir": "/home/s3758869/models",
+
+    "four_bit_quantization": false,
+    "eight_bit_quantization": false,
+
+    "image_size": 336,
+    "max_new_tokens_action": 100,
+    "max_new_tokens_activity": 20,
+
+    "each_nth_frame_sec": 3,
+    "n_frames_for_activity": 10,
+    "local_window_for_action_size": 1,
+
+    "input_data_folder": "/deepstore/datasets/dmb/ComputerVision/information_retrieval/AriaEA",
+    "output_data_folder": "/home/s3758869/vlm_datasets/AriaEA_vlm_ann_3_10_Qwen3-VL-30B-A3B-Instruct",
+
+    "action_single_frame_prompt": "action_recognition_prompt_1",
+    "action_window_prompt": "action_window_prompt_1",
+    "activity_prompt": "activity_recognition_prompt_1"
+}

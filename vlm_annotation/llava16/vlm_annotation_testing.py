@@ -12,7 +12,7 @@ from PIL import Image
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from vlm_annotation_pipeline import load_llava_model, parse_llava_output
+from llava16.llava import load_model as load_llava_model, parse_output as parse_llava_output
 
 testing_folder = "/home/s3758869/vlm_datasets/AriaEA_vlm_ann_3_10_llava-v1.6-34b-hf/loc1_script1_seq1_rec1"
 frames_path = os.path.join(testing_folder, "frames")
