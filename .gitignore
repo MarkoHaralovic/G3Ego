@@ -212,3 +212,9 @@ slurm_outputs
 graph_construction/object_detection_pipeline/Open-GroundingDino/weights
 graph_construction/object_detection_pipeline/Open-GroundingDino/output
 graph_construction/object_detection_pipeline/Open-GroundingDino/tools/GroundingDINO
+MECCANO
+SlowFast/**/__pycache__/
+SlowFast/checkpoints/
+SlowFast/tensorboard/
+SlowFast/stdout.log
+SlowFast/MECCANO_chkpts/
