@@ -163,43 +163,35 @@ def gpu_worker(gpu_id, task_queue, result_queue, cfg, vlm):
             if task is None:
                 break
 
-            input_path, clip_name, output_path = task
-            output_clip_path = os.path.join(output_path, clip_name)
+            mode, clip_name, frames, gazes, output_clip_path = task
 
-            print(f"[GPU {gpu_id}] Processing {clip_name}")
+            print(f"[GPU {gpu_id}] Processing {mode}/{clip_name}")
 
             try:
                 annotate_clip(
                     cfg, vlm, model, processor,
-                    input_path, clip_name, output_clip_path,
+                    frames, gazes, output_clip_path,
                 )
-                result_queue.put((clip_name, "success", None))
+                result_queue.put((f"{mode}/{clip_name}", "success", None))
             except Exception as e:
-                result_queue.put((clip_name, "error", str(e)))
+                result_queue.put((f"{mode}/{clip_name}", "error", str(e)))
 
         except Exception:
             continue
         
 def annotate_dataset_mp(cfg, vlm, num_gpus):
-    input_path = cfg["input_data_folder"]
     output_path = cfg["output_data_folder"]
-    clip_names = [
-        name
-        for name in os.listdir(input_path)
-        if os.path.isdir(os.path.join(input_path, name))
-    ]
-    clip_names = [
-        name
-        for name in clip_names
-        if not os.path.exists(os.path.join(output_path, name))
-    ]
-    total_clips = len(clip_names)
-
     task_queue = mp.Queue()
     result_queue = mp.Queue()
+    total_clips = 0
 
-    for clip_name in clip_names:
-        task_queue.put((input_path, clip_name, output_path))
+    for mode in ["Train", "Val", "Test"]:
+        frames = get_frames(cfg["frames_input_folder"], mode)
+        gazes = get_gazes_for_frames(cfg["gaze_input_folder"], mode, list(frames.keys()))
+        for clip_name, clip_frames in frames.items():
+            output_clip_path = os.path.join(output_path, mode, clip_name)
+            task_queue.put((mode, clip_name, clip_frames, gazes.get(clip_name, {}), output_clip_path))
+            total_clips += 1
 
     for _ in range(num_gpus):
         task_queue.put(None)
