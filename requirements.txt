@@ -19,3 +19,18 @@ lap
 lapx
 spacy
 scikit-learn
+yacs
+pyyaml
+av
+termcolor
+simplejson
+psutil
+tensorboard
+fvcore
+iopath
+pytorchvideo
+
+# Optional
+# detectron2
+# fairscale
+# moviepy

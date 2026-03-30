@@ -1,5 +1,4 @@
+
 {
-    "action_recognition_prompt": "DO SOMETHING",
-    "action_window_prompt": "DO SOMETHING",
-    "activity_recognition_prompt": "DO SOMETHING {actions}"
+    "action_recognition_prompt": "DO SOMETHING"
 }
