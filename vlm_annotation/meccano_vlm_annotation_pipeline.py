@@ -32,11 +32,14 @@ def get_gazes_for_frames(gaze_input_folder : Path, mode : str, clip_names : str)
         gaze_rows = pd.read_csv(gaze_file)
         gazes = {}
         for _, row in gaze_rows.iterrows(): 
-            gazes[Path(str(row["frame"])).stem] = {
-                "confidence": row["confidence"],
-                "gaze_x": row["x_pixel_coord"],
-                "gaze_y": row["y_pixel_coord"],
-            }
+            key = Path(str(row["frame"])).stem
+            #each file can have multiple gaze entries for the same frame, we take the one with the highest confidence
+            if key not in gazes:
+                gazes[key] = {
+                    "confidence": row["confidence"],
+                    "gaze_x": row["x_pixel_coord"],
+                    "gaze_y": row["y_pixel_coord"],
+                }
         gaze_data[clip_name] = gazes
     return gaze_data
 
