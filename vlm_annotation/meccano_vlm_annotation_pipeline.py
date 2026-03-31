@@ -75,18 +75,10 @@ def save_images_annotations(
     image_paths, output_path, actions, gazes, model_id,
 ):
     os.makedirs(output_path, exist_ok=True)
-    img_dir = os.path.join(output_path, "RGB_frames")
-    os.makedirs(img_dir, exist_ok=True)
-
     csv_records = []
 
     for i, image_path in enumerate(image_paths):
         frame_name = os.path.basename(image_path)
-        frame_path = os.path.join(img_dir, frame_name)
-        image = cv2.imread(image_path)
-        if image is not None:
-            cv2.imwrite(frame_path, image)
-
         gaze = gazes[i] if gazes and i < len(gazes) else None
 
         csv_records.append(
