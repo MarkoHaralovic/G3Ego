@@ -4,7 +4,7 @@
 
     "model_id": "qwen3vl_32b_instruct",
     "model_name": "Qwen3-VL-32B-Instruct",
-    "model_path": "/home/s3758869/models/Qwen3-VL-32B-Instruct",
+    "model_path":  "/home/s3758869/models/Qwen3-VL-32B-Instruct", 
     "model_cache_dir": "/home/s3758869/models",
 
     "four_bit_quantization": false,
@@ -15,8 +15,8 @@
 
     "local_window_for_action_size": 1,
 
-    "frames_input_folder": "/home/s3758869/egocentric_video_graph_framework_ar/MECCANO/dataset/RGB_frames",
-    "gaze_input_folder": "/home/s3758869/egocentric_video_graph_framework_ar/MECCANO/dataset/MECCANO_Gaze_data",
+    "frames_input_folder": "/deepstore/datasets/dmb/ComputerVision/information_retrieval/MECCANO//dataset/RGB_frames",
+    "gaze_input_folder": "/deepstore/datasets/dmb/ComputerVision/information_retrieval/MECCANO//dataset/MECCANO_Gaze_data",
     "output_data_folder": "/home/s3758869/vlm_datasets/MECCANO_vlm_ann_Qwen3-VL-32B-Instruct",
 
     "action_recognition_prompt": "action_recognition_prompt"
