@@ -22,18 +22,7 @@ def get_subject_verb_pairs(t):
         return None
 
 
-not_verbs = [
-    "cheese",
-    "counter",
-    "fork",
-    "orange",
-    "oven",
-    "pattern",
-    "shin",
-    "spoon",
-    "stove",
-    "utensil",
-]
+not_verbs = []
 
 COLOR_WORDS = frozenset({
     "red", "gray", "grey", "blue", "green", "yellow", "white", "black",
@@ -63,7 +52,8 @@ def get_aux_verbs(t, main_verb_lemma):
         # but skip other verbs whose head is a noun
         if tok.head.pos_ in ("NOUN", "PROPN") and tok.dep_ not in ("acl", "relcl"):
             continue
-        if tok.dep_ in ("xcomp", "advcl", "conj", "acl", "relcl"):
+        # "prep" covers participial prepositions (e.g. "following instructions")
+        if tok.dep_ in ("xcomp", "advcl", "conj", "acl", "relcl", "prep"):
             aux.append(tok.lemma_)
 
     seen = set()
@@ -124,16 +114,12 @@ def check_if_obj(token):
         if token.dep_ in ("appos", "dep"):
             return str(token)
 
-        # coordinated noun: "couch and picture"
-        if token.dep_ == "conj" and token.head.pos_ in ("NOUN", "PROPN"):
-            # keep it if the head noun is something we would have kept
-            head = token.head
-            if head.dep_ in ("dobj", "obj", "iobj", "dative"):
-                return str(token)
-            if head.dep_ == "pobj" and head.head.dep_ == "prep":
-                return str(token)
-            if head.dep_ in ("pobj", "conj", "appos", "dep"):
-                return str(token)
+        # coordinated noun — accept any NOUN/PROPN conjunct.
+        # spaCy can assign the conj head to a noun *or* a verb
+        # depending on sentence complexity (e.g. "there are scattered
+        # red and gray plastic pieces, a monitor, ...").
+        if token.dep_ == "conj":
+            return str(token)
 
     return None
 
@@ -214,12 +200,26 @@ def get_aux_verb_object_map(t, aux_verb_lemma, all_objects):
 
         for ch in v.children:
             if ch.dep_ in ("dobj", "obj"):
-                candidate_phrases.append(noun_phrase(ch))
+                # Use object_record for consistency with the left-scan
+                # approach (captures coordinated colours, etc.)
+                recs = object_record(ch)
+                for rec in recs:
+                    candidate_phrases.append(rec["raw"])
 
             if ch.dep_ == "prep":
-                for pobj in ch.children:
-                    if pobj.dep_ == "pobj" and pobj.pos_ in ("NOUN", "PROPN"):
-                        candidate_phrases.append(noun_phrase(pobj))
+                # Skip prep-pobj when a comma sits between the verb and
+                # the preposition — that comma marks a clause boundary
+                # (e.g. "following instructions …, with a monitor")
+                has_comma = any(
+                    doc[k].text == ","
+                    for k in range(v.i + 1, ch.i)
+                )
+                if not has_comma:
+                    for pobj in ch.children:
+                        if pobj.dep_ == "pobj" and pobj.pos_ in ("NOUN", "PROPN"):
+                            recs = object_record(pobj)
+                            for rec in recs:
+                                candidate_phrases.append(rec["raw"])
 
         for cand in candidate_phrases:
             key = norm_obj(cand)
@@ -580,7 +580,8 @@ def parse_annotate_folder(input_path):
 def main():
     input_dataset_folder = "/home/s3758869/vlm_datasets/MECCANO_vlm_ann_Qwen3-VL-32B-Instruct-3fps"
     parse_annotate_folder(os.path.join(input_dataset_folder, "Val"))
-
+    parse_annotate_folder(os.path.join(input_dataset_folder, "Test"))
+    parse_annotate_folder(os.path.join(input_dataset_folder, "Train"))
 
 if __name__ == "__main__":
     main()
