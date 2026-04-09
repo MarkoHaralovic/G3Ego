@@ -6,7 +6,7 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --time=50:00:00
 #SBATCH --gres=gpu:1
-#SBATCH --output /home/s3758869/surgical_video_assessment/slurm_outputs/meccano_dinov3_feat_extraction_%J.log
+#SBATCH --output /home/s3758869/egocentric_video_graph_framework_ar/slurm_outputs/meccano_dinov3_feat_extraction_%J.log
 
 export HTTP_PROXY="http://proxy.utwente.nl:3128"
 export HTTPS_PROXY="http://proxy.utwente.nl:3128"

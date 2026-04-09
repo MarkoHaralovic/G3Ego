@@ -223,7 +223,7 @@ def inference(args):
 
             groundings = {}
 
-            for _, ann_row in parsed_annotations.iterrows():
+            for _, ann_row in tqdm(parsed_annotations.iterrows(), desc=f"{clip_name} annotations", total=len(parsed_annotations)):
                 frame_id = int(ann_row["frame_id"])
 
                 gaze_row = gaze_df[gaze_df["frame_index"] == frame_id]

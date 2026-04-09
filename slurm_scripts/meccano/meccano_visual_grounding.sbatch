@@ -13,15 +13,18 @@ export HTTPS_PROXY="http://proxy.utwente.nl:3128"
 export http_proxy="http://proxy.utwente.nl:3128"
 export https_proxy="http://proxy.utwente.nl:3128"
 
+set -euo pipefail
+
+source /home/s3758869/miniconda3/etc/profile.d/conda.sh
 conda activate ego_graphs
-cd /home/s3758869/egocentric_video_graph_framework_ar/graph_construction/object_detection_pipeline/Open-GroundingDino/models/GroundingDINO/ops
-python setup.py build install
-python test.py
+export PYTHONNOUSERSITE=1
+unset PYTHONPATH
+PYTHON_BIN="/home/s3758869/miniconda3/envs/ego_graphs/bin/python"
 
 cd /home/s3758869/egocentric_video_graph_framework_ar/graph_construction/object_detection_pipeline/Open-GroundingDino
 
 # running Grounding DINO Base
-python extract_gdino_features_meccano.py \
+"${PYTHON_BIN}" -s extract_gdino_features_meccano.py \
     -c tools/GroundingDINO_SwinB_cfg.py \
     -p /home/s3758869/egocentric_video_graph_framework_ar/graph_construction/object_detection_pipeline/Open-GroundingDino/weights/groundingdino_swinb_cogcoor.pth \
     --device cuda
