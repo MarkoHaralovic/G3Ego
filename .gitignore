@@ -218,3 +218,6 @@ SlowFast/checkpoints/
 SlowFast/tensorboard/
 SlowFast/stdout.log
 SlowFast/MECCANO_chkpts/
+
+graph_training/test_graph_construction.py
+graph_training/test.py
