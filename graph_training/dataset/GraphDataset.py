@@ -8,197 +8,31 @@ import pandas as pd
 import torch
 from torch.utils.data import Dataset
 
-from global_feature_training.data_loading.dataset_split import (
-    decode_label,
-    map_or_skip_label,
-    stratified_split,
-)
+try:
+    from global_feature_training.data_loading.dataset_split import (
+        decode_label,
+        map_or_skip_label,
+        stratified_split,
+    )
+except ImportError:
+    from global_feature_training.data_loading.dataset_split_aria import (
+        decode_label,
+        map_or_skip_label,
+        stratified_split,
+    )
 from graph_construction.graphs.full_graph import FullActionGraph
 from graph_construction.graphs.pruned_graph import PrunedActionGraph
 
-TRAIN_SIZE = 0.8
-VAL_SIZE = 0.2
 
-ignored_verbs = ["toast", "fold", "take", "put", "cut", "play"]
-ignored_nouns = [
-    "sink",
-    "washer",
-    "headphones",
-    "camera",
-    "watch",
-    "pan",
-    "tv",
-    "coffee maker",
-    "table",
-    "book",
-    "washer",
-    "sink",
-    "cupboard",
-    "pants",
-    "present",
-    "macaroni",
-    "pizza",
-    "snack",
-    "banana",
-    "toast",
-    "bag",
-    "pancake",
-    "chip",
-    "newspaper",
-    "magazine",
-    "soup",
-    "toast",
-    "treadmill",
-    "bag",
-    "kitchen",
-    "inside",
-    "house",
-    "door",
-    "floor",
-    "clothes",
-    "pan",
-    "cup",
-    "fruit",
-    "ceiling",
-    "paper",
-    "note",
-    "room",
-    "carpet",
-    "table",
-    "floor",
-]
-noun_replacement = "other"
-skip_labels = {"na", "not_annotated"}
+class ZeroTextEmbeddings(dict):
+    def __init__(self, emb_dim=512):
+        super().__init__()
+        self.emb_dim = emb_dim
 
-DATASET_PATH = "/home/s3758869/vlm_datasets/AriaEA_vlm_ann_3_10_llava-v1.6-34b-hf"
-model_name = "dinov3h16+"
-pooling = "concat"
+    def __missing__(self, key):
+        return torch.zeros(self.emb_dim, dtype=torch.float32)
 
-clips = [
-    clip
-    for clip in os.listdir(DATASET_PATH)
-    if os.path.isdir(os.path.join(DATASET_PATH, clip))
-]
-
-def return_train_val_samples(
-    input_folder=DATASET_PATH,
-    clips=clips,
-    model_name=model_name,
-    num_frames=None,
-    pooling=pooling,
-    skip_labels=skip_labels,
-    skip_verbs=ignored_verbs,
-    skip_nouns=ignored_nouns,
-    noun_replacement="other",
-    skip_na=True,
-    val_ratio=VAL_SIZE,
-):
-    samples = collect_samples(
-        input_folder=input_folder,
-        clip_names=clips,
-        model_name=model_name,
-        pooling=pooling,
-        num_frames=num_frames,
-        skip_labels=skip_labels,
-        skip_verbs=skip_verbs,
-        skip_nouns=skip_nouns,
-        noun_replacement=noun_replacement,
-        skip_na=skip_na,
-    )
-    train_samples, val_samples = stratified_split(samples, val_ratio, seed=0)
-
-    acts = sorted({s[3] for s in samples})
-    activity_to_idx = {a: i for i, a in enumerate(acts)}
-
-    return train_samples, val_samples, activity_to_idx
-
-
-def collect_samples(
-    input_folder,
-    clip_names,
-    model_name,
-    pooling=None,
-    num_frames=None,
-    skip_labels=set(),
-    skip_verbs=set(),
-    skip_nouns=set(),
-    skip_activities=["no_annotated", "na"],
-    noun_replacement="other",
-    skip_na=True,
-):
-
-    samples = []  # (clip_name, h5_path, block_idx, label_str)
-
-    for clip_name in clip_names:
-        clip_path = os.path.join(input_folder, clip_name)
-
-        frames_path = os.path.join(clip_path, "frames")
-        annotations = pd.read_csv(os.path.join(clip_path, "annotations.csv"))
-        parse_annotations = pd.read_csv(os.path.join(clip_path, "parse_annotation.csv"))
-        object_features_path = os.path.join(clip_path, "object_features_dinoT.pkl")
-        with open(object_features_path, "rb") as f:
-            object_features = pickle.load(f)
-
-        if pooling is not None:
-            h5_path = os.path.join(
-                clip_path, f"activity_features_model_{model_name}_pooling_{pooling}.h5"
-            )
-        elif num_frames is not None:
-            h5_path = os.path.join(
-                clip_path,
-                f"activity_features_model_{model_name}_numframes_{num_frames}.h5",
-            )
-        else:
-            raise Exception(f"Define either num_frames or pooling.")
-
-        if not os.path.exists(h5_path):
-            continue
-
-        with h5py.File(h5_path, "r") as f:
-            labels = f["activity_labels"][:]
-            for block_idx, raw_label in enumerate(labels):
-                if raw_label is skip_activities:
-                    continue
-                frame_anns = annotations[annotations["activity_block_id"] == block_idx]
-                frame_idxs = list(
-                    frame_anns["frame_index"]
-                )  # [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-                frame_clips = f["visual_features"][block_idx]
-                frame_clips = frame_clips.reshape(10, 1280)
-                frame_parse_anns_list = [
-                    parse_annotations[parse_annotations["frame_id"] == f_idx]
-                    for f_idx in frame_idxs
-                ]
-                frame_parse_anns = (
-                    pd.concat(frame_parse_anns_list, ignore_index=False)
-                    if frame_parse_anns_list
-                    else pd.DataFrame()
-                )
-                frame_object_features = [
-                    object_features[f"frame_{int(ind)}"] for ind in frame_idxs
-                ]
-                lab = decode_label(raw_label)
-                lab = map_or_skip_label(
-                    lab, skip_labels, skip_verbs, skip_nouns, noun_replacement, skip_na
-                )
-                if lab is not None:
-                    samples.append(
-                        (
-                            clip_name,
-                            h5_path,
-                            block_idx,
-                            lab,
-                            frame_anns,
-                            frame_parse_anns,
-                            frame_clips,
-                            frame_object_features,
-                        )
-                    )
-
-    return samples
-
-
-class GraphDataset(Dataset):
+class GraphDatasetAria(Dataset):
 
     def __init__(self, input_path, samples, activity_to_idx, graph_type):
         self.graph_type = graph_type
@@ -215,7 +49,11 @@ class GraphDataset(Dataset):
         with open(os.path.join(input_path, "attributes.json"), "r") as f:
             self.attrs = json.load(f)
             
-        self.clip_textual_embeddings = pickle.load(open(os.path.join(input_path, "clip_text_features.pkl"), 'rb'))
+        clip_text_path = os.path.join(input_path, "clip_text_features.pkl")
+        if os.path.exists(clip_text_path):
+            self.clip_textual_embeddings = pickle.load(open(clip_text_path, "rb"))
+        else:
+            self.clip_textual_embeddings = ZeroTextEmbeddings()
         self.input_path = input_path
 
         self.samples = samples
@@ -279,7 +117,11 @@ class GraphDataset(Dataset):
 
                 verb = frame_parsed_ann["verb"].iloc[0]
                 direct_object = frame_parsed_ann["direct_object"].iloc[0]
-                gazed_at_object = frame_parsed_ann["gazed_at_object"].iloc[0]
+                gazed_at_object = (
+                    frame_parsed_ann["gazed_at_object"].iloc[0]
+                    if "gazed_at_object" in frame_parsed_ann.columns
+                    else None
+                )
                 objects_atr_val = frame_parsed_ann["all_objects"].iloc[0]
                 objects_atr_map = (
                     literal_eval(objects_atr_val)
@@ -337,6 +179,229 @@ class GraphDataset(Dataset):
             raise e
 
 
+class GraphDatasetMeccano(Dataset):
+    def __init__(self, input_path, samples, activity_to_idx, graph_type):
+        self.input_path = input_path
+        self.samples = samples
+        self.activity_to_idx = activity_to_idx
+        self.idx_to_activity = {v: k for k, v in self.activity_to_idx.items()}
+        self.graph_type = graph_type
+        self.sample_index = [
+            (
+                sample["clip_name"],
+                sample["sample_id"],
+                sample["label"],
+                sample["clip_dir"],
+                sample["frame_numbers"],
+            )
+            for sample in samples
+        ]
+        self._clip_cache = {}
+
+        self.metadata_root = self._resolve_metadata_root(input_path)
+        with open(os.path.join(self.metadata_root, "verbs.json"), "r") as f:
+            self.verbs = json.load(f)
+        with open(os.path.join(self.metadata_root, "objects.json"), "r") as f:
+            self.objs = json.load(f)
+        with open(os.path.join(self.metadata_root, "relationships.json"), "r") as f:
+            self.rels = json.load(f)
+        with open(os.path.join(self.metadata_root, "attributes.json"), "r") as f:
+            self.attrs = json.load(f)
+
+        clip_text_path = os.path.join(self.metadata_root, "clip_text_features.pkl")
+        if os.path.exists(clip_text_path):
+            self.clip_textual_embeddings = pickle.load(open(clip_text_path, "rb"))
+        else:
+            self.clip_textual_embeddings = ZeroTextEmbeddings()
+
+    def _resolve_metadata_root(self, input_path):
+        if os.path.exists(os.path.join(input_path, "verbs.json")):
+            return input_path
+
+        for split_name in ("Train", "Val", "Test"):
+            split_root = os.path.join(input_path, split_name)
+            if os.path.exists(os.path.join(split_root, "verbs.json")):
+                return split_root
+
+        raise FileNotFoundError(
+            f"Could not find verbs.json/objects.json metadata under {input_path}"
+        )
+
+    def _derive_parse_annotations(self, clip_dir):
+        parse_annotations = pd.read_csv(os.path.join(clip_dir, "parse_annotation.csv"))
+        annotations_path = os.path.join(clip_dir, "annotations_qwen3vl_32b_instruct.csv")
+
+        if os.path.exists(annotations_path):
+            annotations = pd.read_csv(
+                annotations_path, usecols=["frame_index", "frame_file"]
+            )
+            annotations["frame_number"] = (
+                annotations["frame_file"]
+                .astype(str)
+                .str.replace(".jpg", "", regex=False)
+                .astype(int)
+            )
+            parse_annotations = parse_annotations.merge(
+                annotations,
+                left_on="frame_id",
+                right_on="frame_index",
+                how="left",
+            )
+        else:
+            parse_annotations["frame_number"] = (
+                parse_annotations["frame_id"].astype(int) * 3 + 1
+            )
+            parse_annotations["frame_file"] = parse_annotations["frame_number"].map(
+                lambda x: f"{x:05d}.jpg"
+            )
+
+        return parse_annotations
+
+    def _load_clip_resources(self, clip_dir):
+        cached = self._clip_cache.get(clip_dir)
+        if cached is not None:
+            return cached
+
+        parse_annotations = self._derive_parse_annotations(clip_dir)
+        h5_path = os.path.join(clip_dir, "frame_features_model_dinov3h16+.h5")
+        h5_file = h5py.File(h5_path, "r")
+        frame_num_to_h5_idx = {}
+
+        for idx, frame_name in enumerate(h5_file["frame_names"]):
+            if isinstance(frame_name, bytes):
+                frame_name = frame_name.decode("utf-8")
+            frame_num_to_h5_idx[int(os.path.splitext(frame_name)[0])] = idx
+
+        resources = {
+            "parse_annotations": parse_annotations,
+            "h5_file": h5_file,
+            "frame_num_to_h5_idx": frame_num_to_h5_idx,
+        }
+        self._clip_cache[clip_dir] = resources
+        return resources
+
+    def __len__(self):
+        return len(self.sample_index)
+
+    def __getitem__(self, idx):
+        try:
+            clip_name, sample_id, label_str, clip_dir, frame_numbers = self.sample_index[idx]
+            resources = self._load_clip_resources(clip_dir)
+            parse_annotations = resources["parse_annotations"]
+            h5_file = resources["h5_file"]
+            frame_num_to_h5_idx = resources["frame_num_to_h5_idx"]
+
+            frame_rows = []
+            frame_feats = []
+            obj_feats = []
+            for frame_number in frame_numbers:
+                frame_row = parse_annotations[
+                    parse_annotations["frame_number"] == frame_number
+                ]
+                if frame_row.empty or frame_number not in frame_num_to_h5_idx:
+                    raise KeyError(
+                        f"Missing frame {frame_number} for clip {clip_name} in {clip_dir}"
+                    )
+
+                frame_rows.append(frame_row.iloc[0].copy())
+                frame_feats.append(
+                    h5_file["visual_features"][frame_num_to_h5_idx[frame_number]]
+                )
+                obj_feats.append({"objects": {}, "object_gazed_at": {}})
+
+            frame_parsed_anns = pd.DataFrame(frame_rows).reset_index(drop=True)
+            frame_anns = pd.DataFrame(
+                {"frame_index": frame_parsed_anns["frame_id"].astype(int).tolist()}
+            )
+
+            output = {"clip_name": clip_name, "block_idx": sample_id}
+            output["activity_label"] = torch.tensor(
+                self.activity_to_idx[label_str], dtype=torch.long
+            )
+            output["activity_name"] = label_str
+
+            action_scene_graphs = {}
+
+            for i, frame_id in enumerate(frame_anns["frame_index"].tolist()):
+                frame_parsed_ann = frame_parsed_anns[
+                    frame_parsed_anns["frame_id"] == frame_id
+                ]
+                if self.graph_type == "full":
+                    graph = FullActionGraph(
+                        self.verbs, self.objs, self.rels, self.attrs
+                    )
+                elif self.graph_type == "pruned":
+                    graph = PrunedActionGraph(
+                        self.verbs, self.objs, self.rels, self.attrs
+                    )
+                else:
+                    raise ValueError(f"Unsupported graph_type: {self.graph_type}")
+
+                verb = frame_parsed_ann["verb"].iloc[0]
+                direct_object = frame_parsed_ann["direct_object"].iloc[0]
+                gazed_at_object = (
+                    frame_parsed_ann["gazed_at_object"].iloc[0]
+                    if "gazed_at_object" in frame_parsed_ann.columns
+                    else None
+                )
+                objects_atr_val = frame_parsed_ann["all_objects"].iloc[0]
+                objects_atr_map = (
+                    literal_eval(objects_atr_val)
+                    if not pd.isna(objects_atr_val)
+                    else {}
+                )
+                rels_val = frame_parsed_ann["preposition_object_pairs"].iloc[0]
+                rels_dict = literal_eval(rels_val) if not pd.isna(rels_val) else []
+                aux_verbs_str = frame_parsed_ann["aux_verbs"].iloc[0]
+                aux_verbs = (
+                    literal_eval(aux_verbs_str)
+                    if aux_verbs_str
+                    and aux_verbs_str != "[]"
+                    and not pd.isna(aux_verbs_str)
+                    else None
+                )
+                aux_obj_str = frame_parsed_ann["object_aux_verb"].iloc[0]
+                aux_direct_objects_map = (
+                    literal_eval(aux_obj_str)
+                    if aux_obj_str and aux_obj_str != "{}" and not pd.isna(aux_obj_str)
+                    else None
+                )
+
+                if self.graph_type == "full":
+                    graph = graph.create_graph(
+                        verb=verb,
+                        direct_object=direct_object,
+                        objects_atr_map=objects_atr_map,
+                        clip_feat=frame_feats[i],
+                        obj_feats=obj_feats[i],
+                        rels_dict=rels_dict,
+                        aux_verbs=aux_verbs,
+                        aux_direct_objects_map=aux_direct_objects_map,
+                        clip_embeddings=self.clip_textual_embeddings,
+                    )
+                else:
+                    graph = graph.create_graph(
+                        verb=verb,
+                        gazed_at_object=gazed_at_object,
+                        direct_object=direct_object,
+                        objects_atr_map=objects_atr_map,
+                        clip_feat=frame_feats[i],
+                        obj_feats=obj_feats[i],
+                        rels_dict=rels_dict,
+                        clip_embeddings=self.clip_textual_embeddings,
+                    )
+
+                action_scene_graphs[i] = graph
+                output["full_action_graphs"] = action_scene_graphs
+
+            return output
+        except Exception as e:
+            print(e)
+            print(f"ERROR loading sample {idx}: {type(e).__name__}: {e}")
+            print(f"  clip: {clip_name if 'clip_name' in locals() else 'unknown'}")
+            print(f"  label: {label_str if 'label_str' in locals() else 'unknown'}")
+            raise e
+
 def feature_collate_fn(batch):
     output = {}
 
@@ -347,12 +412,3 @@ def feature_collate_fn(batch):
     output["full_action_graphs"] = [item["full_action_graphs"] for item in batch]
 
     return output
-
-
-def test():
-    train_samples, val_samples, activity_to_idx = return_train_val_samples()
-    ds = GraphDataset(DATASET_PATH, val_samples, activity_to_idx)
-
-    out = ds.__getitem__(0)
-
-    print(out)

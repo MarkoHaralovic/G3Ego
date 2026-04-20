@@ -1,6 +1,7 @@
 import json
 import os
 import re
+from ast import literal_eval
 
 import pandas as pd
 import spacy
@@ -452,6 +453,8 @@ def parse_annotate_folder(input_path):
     objects = {}
     relationships = {}
     relationships["direct_object"] = 0
+    relationships["aux_direct_object"] = 0
+    relationships["aux_verb"] = 0
     verbs = {}
     attributes_dict = {}
 
@@ -489,6 +492,13 @@ def parse_annotate_folder(input_path):
                 verbs[verb] = verbs.get(verb, 0) + 1
                 for _verb in aux_verbs:
                     verbs[_verb] = verbs.get(_verb, 0) + 1
+                    relationships["aux_verb"] += 1
+
+                if object_aux_verb:
+                    aux_object_map = literal_eval(object_aux_verb)
+                    relationships["aux_direct_object"] += sum(
+                        len(objects_for_aux) for objects_for_aux in aux_object_map.values()
+                    )
 
                 if preposition_object_pairs:
                     for pdict in preposition_object_pairs:
@@ -579,7 +589,7 @@ def parse_annotate_folder(input_path):
 
 def main():
     input_dataset_folder = "/home/s3758869/vlm_datasets/MECCANO_vlm_ann_Qwen3-VL-32B-Instruct-3fps"
-    parse_annotate_folder(os.path.join(input_dataset_folder, "Val"))
+    # parse_annotate_folder(os.path.join(input_dataset_folder, "Val"))
     parse_annotate_folder(os.path.join(input_dataset_folder, "Test"))
     parse_annotate_folder(os.path.join(input_dataset_folder, "Train"))
 

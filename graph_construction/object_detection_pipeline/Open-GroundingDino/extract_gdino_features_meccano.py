@@ -14,7 +14,9 @@ import pandas as pd
 
 ANNOTATION_BASE = "/home/s3758869/vlm_datasets/MECCANO_vlm_ann_Qwen3-VL-32B-Instruct-3fps"
 IMAGES_BASE = "/home/s3758869/egocentric_video_graph_framework_ar/MECCANO/dataset/RGB_frames"
-SPLITS = ("Train", "Val", "Test")
+# SPLITS = ("Train", "Val", "Test")
+SPLITS = ("Val")
+
 
 # clone https://github.com/IDEA-Research/GroundingDINO into /tools
 # move tools/GroundingDINO/groundingdino to /tools/groundingdino

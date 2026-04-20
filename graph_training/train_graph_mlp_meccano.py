@@ -10,10 +10,11 @@ from datetime import datetime
 
 import torch
 from dataset.GraphDataset import (
-    GraphDatasetAria,
+    GraphDatasetMeccano,
     feature_collate_fn
 )
-from dataset.aria_aux import return_train_val_samples
+from dataset.meccano_aux import return_meccano_train_val_samples
+
 from modeling.GraphMLP import GraphMLP
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -65,21 +66,31 @@ if __name__ == "__main__":
     graph_pool_interim_feat = attention_pool_cfg["graph_pool_interim_feat"]
     final_graph_emb_dim = attention_pool_cfg["final_graph_emb_dim"]
 
-    train_samples, val_samples, activity_to_idx = return_train_val_samples(
-        pooling="concat"
+    data_path = config["data"]["input_path"]
+    train_actions_csv = config["data"]["train_actions_csv"]
+    val_actions_csv = config["data"]["val_actions_csv"]
+
+    train_samples, val_samples, activity_to_idx, split_stats = return_meccano_train_val_samples(
+        dataset_root=data_path,
+        train_actions_csv=train_actions_csv,
+        val_actions_csv=val_actions_csv,
+        num_graphs=num_graphs,
     )
 
-    data_path = config["data"]["input_path"]
-    with open(os.path.join(data_path, "verbs.json"), "r") as f:
+    metadata_root = data_path
+    if not os.path.exists(os.path.join(metadata_root, "verbs.json")):
+        metadata_root = os.path.join(data_path, "Train")
+
+    with open(os.path.join(metadata_root, "verbs.json"), "r") as f:
         verbs = json.load(f)
 
-    with open(os.path.join(data_path, "objects.json"), "r") as f:
+    with open(os.path.join(metadata_root, "objects.json"), "r") as f:
         objs = json.load(f)
 
-    with open(os.path.join(data_path, "relationships.json"), "r") as f:
+    with open(os.path.join(metadata_root, "relationships.json"), "r") as f:
         rels = json.load(f)
 
-    with open(os.path.join(data_path, "attributes.json"), "r") as f:
+    with open(os.path.join(metadata_root, "attributes.json"), "r") as f:
         attrs = json.load(f)
 
     graph_type = config["data"].get("graph_type", "full")
@@ -98,12 +109,16 @@ if __name__ == "__main__":
     print(f"len(train_samples) : {len(train_samples)}")
     print(f"len(val_samples) : {len(val_samples)}")
     print(f"Graph type : {graph_type}")
+    print(f"MECCANO split stats : {json.dumps(split_stats, indent=2)}")
 
-    train_dataset = GraphDatasetAria(
-        data_path, train_samples, activity_to_idx, graph_type
+    train_dataset = GraphDatasetMeccano(
+        data_path, 
+        train_samples, 
+        activity_to_idx, 
+        graph_type
     )
 
-    validation_dataset = GraphDatasetAria(
+    validation_dataset = GraphDatasetMeccano(
         data_path, val_samples, activity_to_idx, graph_type
     )
     
@@ -128,7 +143,6 @@ if __name__ == "__main__":
         pin_memory=False,
         collate_fn=feature_collate_fn,
     )
-
     model = GraphMLP(
         num_graphs=num_graphs,
         num_verbs=len(verbs),
@@ -197,6 +211,8 @@ if __name__ == "__main__":
         "num_classes": len(cls_mapping),
         "device": device,
         "mlp": config["mlp"],
+        "data": config["data"],
+        "split_stats": split_stats,
     }
 
     with open(os.path.join(save_path, "experiment_config.json"), "w") as f:
