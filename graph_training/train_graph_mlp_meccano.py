@@ -30,6 +30,27 @@ from train.evaluate import (
 from train.train import do_epoch
 
 
+def load_best_checkpoint_if_available(model, save_path, metric="acc", device="cpu"):
+    prefix = f"best_model_{metric}_epoch_"
+    candidates = [
+        file_name
+        for file_name in os.listdir(save_path)
+        if file_name.startswith(prefix) and file_name.endswith(".pt")
+    ]
+    if not candidates:
+        return None
+
+    def _epoch_from_name(file_name):
+        epoch_str = file_name[len(prefix) : -3]
+        return int(epoch_str)
+
+    best_file = max(candidates, key=_epoch_from_name)
+    checkpoint_path = os.path.join(save_path, best_file)
+    checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
+    model.load_state_dict(checkpoint["model_state_dict"])
+    return checkpoint_path
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -81,6 +102,7 @@ if __name__ == "__main__":
     train_actions_csv = config["data"]["train_actions_csv"]
     val_actions_csv = config["data"]["val_actions_csv"]
     test_actions_csv = config["data"]["test_actions_csv"]
+    easg_cache_path = config["data"].get("easg_cache_path")
 
     (
         train_samples,
@@ -141,6 +163,7 @@ if __name__ == "__main__":
     print(f"len(test_samples) : {len(test_samples)}")
     print(f"Graph type : {graph_type}")
     print(f"Vocabulary root : {vocab_root}")
+    print(f"EASG cache path : {easg_cache_path}")
     print(f"MECCANO split stats : {json.dumps(split_stats, indent=2)}")
 
     train_dataset = GraphDatasetMeccano(
@@ -149,6 +172,7 @@ if __name__ == "__main__":
         train_samples,
         activity_to_idx,
         graph_type,
+        easg_cache_path=easg_cache_path,
     )
     validation_dataset = GraphDatasetMeccano(
         metadata_root,
@@ -156,6 +180,7 @@ if __name__ == "__main__":
         val_samples,
         activity_to_idx,
         graph_type,
+        easg_cache_path=easg_cache_path,
     )
     test_dataset = GraphDatasetMeccano(
         metadata_root,
@@ -163,6 +188,7 @@ if __name__ == "__main__":
         test_samples,
         activity_to_idx,
         graph_type,
+        easg_cache_path=easg_cache_path,
     )
 
     assert train_dataset.activity_to_idx == validation_dataset.activity_to_idx
@@ -361,6 +387,14 @@ if __name__ == "__main__":
                 "targets": res["targets"],
             }
         json.dump(json_results, f, indent=2)
+
+    best_acc_checkpoint = load_best_checkpoint_if_available(
+        model, save_path, metric="acc", device=device
+    )
+    if best_acc_checkpoint is not None:
+        print(f"Loaded best Top-1 checkpoint for final test: {best_acc_checkpoint}")
+    else:
+        print("No best Top-1 checkpoint found; using final epoch model for test.")
 
     final_test_result, test_preds, test_targets = evaluate(
         model,

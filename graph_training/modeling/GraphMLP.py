@@ -134,7 +134,8 @@ class ActionGraphEmbedding(nn.Module):
         )
 
     def forward(self, g: Dict[str, torch.Tensor]) -> torch.Tensor:
-        clip = torch.from_numpy(g["clip_feat"]).to(self.device).float()
+        clip_feat = g["clip_feat"]
+        clip = torch.as_tensor(clip_feat, device=self.device).float()
 
         v = self.verb_emb(g["verb_idx"].to(self.device))
         aux_idx = g.get("aux_verb_idx", None)
@@ -310,11 +311,16 @@ class GraphMLP(nn.Module):
 
         self.head = fc
 
+    def _graph_to_tensors(self, graph_or_tensors):
+        if isinstance(graph_or_tensors, dict):
+            return graph_or_tensors
+        return graph_or_tensors.to_easg_tensors()
+
     def forward(self, sequence_graphs: List):
         output = []
         for _sequence_graphs in sequence_graphs:
             graph_embs = [
-                self.action_graph_embedder(graph.to_easg_tensors()).to(self.device)
+                self.action_graph_embedder(self._graph_to_tensors(graph)).to(self.device)
                 for graph in _sequence_graphs.values()
             ]
             if len(_sequence_graphs) < self.num_graphs:

@@ -1,35 +1,35 @@
 {
   "experiment_name": "graph_mlp_baseline",
   "mlp" : {
-    "fc_layers_num": 2,
+    "fc_layers_num": 3,
     "num_graphs" : 10,
     "use_pool" : true,
     "use_proj" : true,
     "action_graph_embedder" : {
       "clip_text_emb_out_feats" : 64,
-      "emb_dim" : 32,
-      "obj_out" : 32,
-      "aux_out" : 16,
-      "attr_out" : 32,
-      "rel_out" : 32,
-      "trip_out" :  32,
+      "emb_dim" : 128,
+      "obj_out" : 128,
+      "aux_out" : 128,
+      "attr_out" : 128,
+      "rel_out" : 128,
+      "trip_out" :  128,
       "k_obj" :  2,
       "k_aux" : 2,
       "k_trip" :  2,
       "clip_dim" : 1280,
-      "clip_emb_dim" : 640,
+      "clip_emb_dim" : 1280,
       "obj_feat_dim" : 256,  
       "use_triplets" : true,  
       "use_clip_text_emb" : false
     },
     "projector" : {
-      "graph_emb_dim" : 256,
+      "graph_emb_dim" : 768,
       "layer_norm" : true,
       "gelu" : true
     },
     "attention_pooler" : {
-      "graph_pool_interim_feat" : 128,
-      "final_graph_emb_dim" : 128
+      "graph_pool_interim_feat" : 256,
+      "final_graph_emb_dim" : 256
     }
   },
   "data": {
@@ -38,6 +38,7 @@
     "train_actions_csv": "/deepstore/datasets/dmb/ComputerVision/information_retrieval/MECCANO/dataset/MECCANO_train_actions.csv",
     "val_actions_csv": "/deepstore/datasets/dmb/ComputerVision/information_retrieval/MECCANO/dataset/MECCANO_val_actions.csv",
     "test_actions_csv": "/deepstore/datasets/dmb/ComputerVision/information_retrieval/MECCANO/dataset/MECCANO_test_actions.csv",
+    "easg_cache_path": "/home/s3758869/vlm_datasets/MECCANO_vlm_ann_Qwen3-VL-32B-Instruct-3fps/easg_tensor_cache",
     "batch_size": 16,
     "num_workers": 2,
     "pin_memory": false,
@@ -46,13 +47,13 @@
   "training": {
     "num_epochs": 20,
     "optimizer": "adam",
-    "learning_rate": 0.0005,
+    "learning_rate": 3e-04,
     "weight_decay": 1e-05,
-    "scheduler_factor": 1.0,
+    "scheduler_factor": 0.97,
     "criterion_metrics": ["f1", "acc"],
     "loss": {
       "name": "cross_entropy",
-      "ifw": false,
+      "ifw": true,
       "focal_gamma": 2.0
     }
   },

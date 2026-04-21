@@ -1,9 +1,7 @@
 import json
 import os
 import pickle
-from collections import defaultdict
 from ast import literal_eval
-from functools import partial
 
 import h5py
 import pandas as pd
@@ -162,7 +160,15 @@ class GraphDatasetAria(Dataset):
 
 
 class GraphDatasetMeccano(Dataset):
-    def __init__(self, metadata_root, split_name, samples, activity_to_idx, graph_type):
+    def __init__(
+        self,
+        metadata_root,
+        split_name,
+        samples,
+        activity_to_idx,
+        graph_type,
+        easg_cache_path=None,
+    ):
         self.samples = samples
         self.activity_to_idx = activity_to_idx
         self.idx_to_activity = {v: k for k, v in self.activity_to_idx.items()}
@@ -183,6 +189,10 @@ class GraphDatasetMeccano(Dataset):
         ]
         self._clip_cache = {}
         self.default_gdino_feat_dim = 256
+        self.easg_cache_path = easg_cache_path
+
+        if self.easg_cache_path is not None:
+            os.makedirs(self.easg_cache_path, exist_ok=True)
 
         self._load_metadata_vocabularies()
         self.clip_textual_embeddings = self._load_clip_text_embeddings()
@@ -194,6 +204,44 @@ class GraphDatasetMeccano(Dataset):
     def _load_clip_text_embeddings(self):
         clip_text_path = os.path.join(self.metadata_root, "clip_text_features.pkl")
         return load_clip_text_embeddings(clip_text_path)
+
+    def _resolve_cache_path(self, clip_name, sample_id, frame_numbers):
+        if self.easg_cache_path is None:
+            return None
+        num_graphs = len(frame_numbers)
+        cache_dir = os.path.join(
+            self.easg_cache_path,
+            self.split_name,
+            self.graph_type,
+            clip_name,
+        )
+        os.makedirs(cache_dir, exist_ok=True)
+        return os.path.join(cache_dir, f"sample_{sample_id:06d}_g{num_graphs}.pt")
+
+    def _tensorize_cached_value(self, value):
+        if isinstance(value, torch.Tensor):
+            return value.detach().cpu()
+        return torch.as_tensor(value).cpu()
+
+    def _build_cached_graphs(self, action_scene_graphs):
+        return {
+            graph_idx: {
+                key: self._tensorize_cached_value(value)
+                for key, value in graph.to_easg_tensors().items()
+            }
+            for graph_idx, graph in action_scene_graphs.items()
+        }
+
+    def _store_cached_sample(self, cache_path, output, action_scene_graphs):
+        cached_output = {
+            "clip_name": output["clip_name"],
+            "block_idx": output["block_idx"],
+            "activity_label": output["activity_label"].detach().cpu(),
+            "activity_name": output["activity_name"],
+            "full_action_graphs": self._build_cached_graphs(action_scene_graphs),
+        }
+        torch.save(cached_output, cache_path)
+        return cached_output
 
     def _load_vocab_group(self, root, prefix=""):
         names = ("verbs", "objects", "relationships", "attributes")
@@ -370,6 +418,10 @@ class GraphDatasetMeccano(Dataset):
     def __getitem__(self, idx):
         try:
             clip_name, sample_id, label_str, clip_dir, frame_numbers = self.sample_index[idx]
+            cache_path = self._resolve_cache_path(clip_name, sample_id, frame_numbers)
+            if cache_path is not None and os.path.exists(cache_path):
+                return torch.load(cache_path, map_location="cpu")
+
             resources = self._load_clip_resources(clip_dir)
             parse_annotations = resources["parse_annotations"]
             h5_file = resources["h5_file"]
@@ -487,6 +539,9 @@ class GraphDatasetMeccano(Dataset):
 
                 action_scene_graphs[i] = graph
                 output["full_action_graphs"] = action_scene_graphs
+
+            if cache_path is not None:
+                return self._store_cached_sample(cache_path, output, action_scene_graphs)
 
             return output
         except Exception as e:
