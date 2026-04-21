@@ -3,11 +3,43 @@ import hashlib
 import os
 import random
 
-def get_split_name(actions_csv_path):
-    stem = os.path.basename(actions_csv_path).lower()
-    if "train" in stem: return "Train"
-    if "val" in stem: return "Val"
-    if "test" in stem: return "Test"
+def get_split_name(split):
+    stem = os.path.basename(str(split)).lower()
+    if "train" in stem:
+        return "Train"
+    if "val" in stem:
+        return "Val"
+    if "test" in stem:
+        return "Test"
+    raise ValueError(f"Unsupported MECCANO split hint: {split}")
+
+
+def resolve_meccano_split_root(metadata_root, split_name):
+    split_name = get_split_name(split_name)
+    split_root = os.path.join(metadata_root, split_name)
+    if os.path.exists(os.path.join(split_root, "verbs.json")):
+        return split_root
+
+    if (
+        os.path.basename(os.path.normpath(metadata_root)).lower() == split_name.lower()
+        and os.path.exists(os.path.join(metadata_root, "verbs.json"))
+    ):
+        return metadata_root
+
+    raise FileNotFoundError(
+        f"Could not find MECCANO metadata for split '{split_name}' under {metadata_root}"
+    )
+
+
+def resolve_meccano_global_root(metadata_root):
+    candidates = [
+        metadata_root,
+        os.path.dirname(os.path.normpath(metadata_root)),
+    ]
+    for candidate in candidates:
+        if os.path.exists(os.path.join(candidate, "global_objects.json")):
+            return candidate
+    return None
 
 def get_available_frame_numbers(clip_dir):
     annotations_path = os.path.join(clip_dir, "annotations_qwen3vl_32b_instruct.csv")
@@ -133,36 +165,6 @@ def collect_meccano_samples(dataset_root, actions_csv_path, num_graphs=10, split
     return samples, stats
 
 
-def return_meccano_train_val_samples(
-    dataset_root,
-    train_actions_csv,
-    val_actions_csv,
-    num_graphs=10,
-):
-    train_samples, train_stats = collect_meccano_samples(
-        dataset_root=dataset_root,
-        actions_csv_path=train_actions_csv,
-        num_graphs=num_graphs,
-        split_name="Train",
-    )
-    val_samples, val_stats = collect_meccano_samples(
-        dataset_root=dataset_root,
-        actions_csv_path=val_actions_csv,
-        num_graphs=num_graphs,
-        split_name="Val",
-    )
-
-    activity_to_idx = build_meccano_action_mapping(
-        train_actions_csv,
-        val_actions_csv,
-    )
-
-    return train_samples, val_samples, activity_to_idx, {
-        "train": train_stats,
-        "val": val_stats,
-    }
-
-
 def return_meccano_train_test_samples(
     dataset_root,
     train_actions_csv,
@@ -191,3 +193,50 @@ def return_meccano_train_test_samples(
         "train": train_stats,
         "test": test_stats,
     }
+
+
+def return_meccano_train_val_test_samples(
+    dataset_root,
+    train_actions_csv,
+    val_actions_csv,
+    test_actions_csv,
+    num_graphs=10,
+):
+    train_samples, train_stats = collect_meccano_samples(
+        dataset_root=dataset_root,
+        actions_csv_path=train_actions_csv,
+        num_graphs=num_graphs,
+        split_name="Train",
+    )
+    val_samples, val_stats = collect_meccano_samples(
+        dataset_root=dataset_root,
+        actions_csv_path=val_actions_csv,
+        num_graphs=num_graphs,
+        split_name="Val",
+    )
+    test_samples, test_stats = collect_meccano_samples(
+        dataset_root=dataset_root,
+        actions_csv_path=test_actions_csv,
+        num_graphs=num_graphs,
+        split_name="Test",
+    )
+
+    activity_to_idx = build_meccano_action_mapping(
+        train_actions_csv,
+        val_actions_csv,
+        test_actions_csv,
+    )
+
+    return train_samples, val_samples, test_samples, activity_to_idx, {
+        "train": train_stats,
+        "val": val_stats,
+        "test": test_stats,
+    }
+
+
+def load_clip_text_embeddings(clip_text_path, emb_dim=512):
+    zero_factory = partial(torch.zeros, emb_dim, dtype=torch.float32)
+    if not os.path.exists(clip_text_path):
+        return defaultdict(zero_factory)
+    with open(clip_text_path, "rb") as f:
+        return defaultdict(zero_factory, pickle.load(f))

@@ -11,19 +11,30 @@ from datetime import datetime
 import torch
 from dataset.GraphDataset import (
     GraphDatasetMeccano,
-    feature_collate_fn
+    feature_collate_fn,
 )
-from dataset.meccano_aux import return_meccano_train_val_samples
-
+from dataset.meccano_aux import (
+    resolve_meccano_global_root,
+    resolve_meccano_split_root,
+    return_meccano_train_val_test_samples,
+)
 from modeling.GraphMLP import GraphMLP
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from train.evaluate import build_loss_fn, compute_class_weights, store_model
+from train.evaluate import (
+    build_loss_fn,
+    compute_class_weights,
+    evaluate,
+    store_model,
+)
 from train.train import do_epoch
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config-path", type=str, help="Path to the experiment config JSON file")
+    parser.add_argument(
+        "--config-path", type=str, help="Path to the experiment config JSON file"
+    )
     args = parser.parse_args()
     config_path = args.config_path
 
@@ -47,7 +58,6 @@ if __name__ == "__main__":
     learning_rate = config["training"]["learning_rate"]
     weight_decay = config["training"]["weight_decay"]
     scheduler_factor = config["training"]["scheduler_factor"]
-    criterion_metrics = config["training"]["criterion_metrics"]
 
     batch_size = config["data"]["batch_size"]
     num_workers = config["data"]["num_workers"]
@@ -56,8 +66,8 @@ if __name__ == "__main__":
     fc_layers_num = mlp_cfg["fc_layers_num"]
     num_graphs = mlp_cfg["num_graphs"]
 
-    use_pool = config["mlp"]["use_pool"]
-    use_proj = config["mlp"]["use_proj"]
+    use_pool = mlp_cfg["use_pool"]
+    use_proj = mlp_cfg["use_proj"]
 
     graph_emb_dim = projector_cfg["graph_emb_dim"]
     layer_norm = projector_cfg.get("layer_norm", True)
@@ -67,30 +77,50 @@ if __name__ == "__main__":
     final_graph_emb_dim = attention_pool_cfg["final_graph_emb_dim"]
 
     data_path = config["data"]["input_path"]
+    metadata_root = config["data"]["metadata_root"]
     train_actions_csv = config["data"]["train_actions_csv"]
     val_actions_csv = config["data"]["val_actions_csv"]
+    test_actions_csv = config["data"]["test_actions_csv"]
 
-    train_samples, val_samples, activity_to_idx, split_stats = return_meccano_train_val_samples(
+    (
+        train_samples,
+        val_samples,
+        test_samples,
+        activity_to_idx,
+        split_stats,
+    ) = return_meccano_train_val_test_samples(
         dataset_root=data_path,
         train_actions_csv=train_actions_csv,
         val_actions_csv=val_actions_csv,
+        test_actions_csv=test_actions_csv,
         num_graphs=num_graphs,
     )
 
-    metadata_root = data_path
-    if not os.path.exists(os.path.join(metadata_root, "verbs.json")):
-        metadata_root = os.path.join(data_path, "Train")
+    global_metadata_root = resolve_meccano_global_root(metadata_root)
+    train_metadata_root = resolve_meccano_split_root(metadata_root, "Train")
+    vocab_root = global_metadata_root or train_metadata_root
 
-    with open(os.path.join(metadata_root, "verbs.json"), "r") as f:
+    if global_metadata_root is not None:
+        verbs_path = os.path.join(vocab_root, "global_verbs.json")
+        objs_path = os.path.join(vocab_root, "global_objects.json")
+        rels_path = os.path.join(vocab_root, "global_relationships.json")
+        attrs_path = os.path.join(vocab_root, "global_attributes.json")
+    else:
+        verbs_path = os.path.join(vocab_root, "verbs.json")
+        objs_path = os.path.join(vocab_root, "objects.json")
+        rels_path = os.path.join(vocab_root, "relationships.json")
+        attrs_path = os.path.join(vocab_root, "attributes.json")
+
+    with open(verbs_path, "r") as f:
         verbs = json.load(f)
 
-    with open(os.path.join(metadata_root, "objects.json"), "r") as f:
+    with open(objs_path, "r") as f:
         objs = json.load(f)
 
-    with open(os.path.join(metadata_root, "relationships.json"), "r") as f:
+    with open(rels_path, "r") as f:
         rels = json.load(f)
 
-    with open(os.path.join(metadata_root, "attributes.json"), "r") as f:
+    with open(attrs_path, "r") as f:
         attrs = json.load(f)
 
     graph_type = config["data"].get("graph_type", "full")
@@ -108,22 +138,35 @@ if __name__ == "__main__":
     print(f"activity_to_idx : {activity_to_idx}")
     print(f"len(train_samples) : {len(train_samples)}")
     print(f"len(val_samples) : {len(val_samples)}")
+    print(f"len(test_samples) : {len(test_samples)}")
     print(f"Graph type : {graph_type}")
+    print(f"Vocabulary root : {vocab_root}")
     print(f"MECCANO split stats : {json.dumps(split_stats, indent=2)}")
 
     train_dataset = GraphDatasetMeccano(
-        data_path, 
-        train_samples, 
-        activity_to_idx, 
-        graph_type
+        metadata_root,
+        "Train",
+        train_samples,
+        activity_to_idx,
+        graph_type,
+    )
+    validation_dataset = GraphDatasetMeccano(
+        metadata_root,
+        "Val",
+        val_samples,
+        activity_to_idx,
+        graph_type,
+    )
+    test_dataset = GraphDatasetMeccano(
+        metadata_root,
+        "Test",
+        test_samples,
+        activity_to_idx,
+        graph_type,
     )
 
-    validation_dataset = GraphDatasetMeccano(
-        data_path, val_samples, activity_to_idx, graph_type
-    )
-    
-    
     assert train_dataset.activity_to_idx == validation_dataset.activity_to_idx
+    assert train_dataset.activity_to_idx == test_dataset.activity_to_idx
     cls_mapping = train_dataset.activity_to_idx
 
     train_loader = DataLoader(
@@ -134,7 +177,6 @@ if __name__ == "__main__":
         pin_memory=pin_memory,
         collate_fn=feature_collate_fn,
     )
-
     val_loader = DataLoader(
         validation_dataset,
         batch_size=batch_size,
@@ -143,6 +185,15 @@ if __name__ == "__main__":
         pin_memory=False,
         collate_fn=feature_collate_fn,
     )
+    test_loader = DataLoader(
+        test_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=0,
+        pin_memory=False,
+        collate_fn=feature_collate_fn,
+    )
+
     model = GraphMLP(
         num_graphs=num_graphs,
         num_verbs=len(verbs),
@@ -181,6 +232,8 @@ if __name__ == "__main__":
             momentum=0.9,
             weight_decay=weight_decay,
         )
+    else:
+        raise ValueError(f"Unsupported optimizer: {optimizer_name}")
 
     scheduler = None
     if scheduler_factor != 1.0:
@@ -191,7 +244,11 @@ if __name__ == "__main__":
     save_path = os.path.join(
         config["output"]["base_path"],
         config["experiment_name"],
-        f"dino_model_fc_layer_{fc_layers_num}_num_epoch_{num_epochs}_graph_emb_dim_{graph_emb_dim}_final_graph_emb_dim_{final_graph_emb_dim}_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+        (
+            f"dino_model_fc_layer_{fc_layers_num}_num_epoch_{num_epochs}"
+            f"_graph_emb_dim_{graph_emb_dim}_final_graph_emb_dim_{final_graph_emb_dim}"
+            f"_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        ),
     )
     os.makedirs(save_path, exist_ok=True)
 
@@ -222,8 +279,6 @@ if __name__ == "__main__":
         json.dump(cls_mapping, f, indent=2)
 
     model.train()
-    trainable_params = model.get_trainable_params()
-
     epoch_preds = {k: {} for k in range(num_epochs)}
 
     for epoch in tqdm(
@@ -254,10 +309,14 @@ if __name__ == "__main__":
         ]
 
         val_metrics = epoch_result["val"]["eval_metrics"]
-        train_metrics = epoch_result["train"]["eval_metrics"]
 
         print(
-            f"\nValidation - Accuracy: {val_metrics['acc']*100:.2f}%, F1: {val_metrics['f1']*100:.2f}%"
+            "\nValidation metrics: "
+            f"Top-1 {val_metrics['top1']*100:.2f}% | "
+            f"Top-5 {val_metrics['top5']*100:.2f}% | "
+            f"Avg. Prec. {val_metrics['avg_precision']*100:.2f}% | "
+            f"Avg. Recall {val_metrics['avg_recall']*100:.2f}% | "
+            f"Avg. F1 {val_metrics['avg_f1']*100:.2f}%"
         )
 
         if val_metrics["acc"] > best_epoch_result["acc"]:
@@ -286,12 +345,10 @@ if __name__ == "__main__":
         for ep, res in results.items():
             json_results[str(ep)] = {
                 "train": {
-                    "acc": float(res["train"]["eval_metrics"]["acc"]),
-                    "f1": float(res["train"]["eval_metrics"]["f1"]),
+                    k: float(v) for k, v in res["train"]["eval_metrics"].items()
                 },
                 "val": {
-                    "acc": float(res["val"]["eval_metrics"]["acc"]),
-                    "f1": float(res["val"]["eval_metrics"]["f1"]),
+                    k: float(v) for k, v in res["val"]["eval_metrics"].items()
                 },
             }
         json.dump(json_results, f, indent=2)
@@ -305,5 +362,29 @@ if __name__ == "__main__":
             }
         json.dump(json_results, f, indent=2)
 
+    final_test_result, test_preds, test_targets = evaluate(
+        model,
+        test_loader,
+        device,
+        num_classes=len(test_dataset.activity_to_idx),
+    )
+    final_test_metrics = final_test_result["eval_metrics"]
+    final_test_summary = {
+        "metrics": {k: float(v) for k, v in final_test_metrics.items()},
+        "predictions": [test_dataset.idx_to_activity[i] for i in test_preds],
+        "targets": [test_dataset.idx_to_activity[i] for i in test_targets],
+    }
+
+    with open(os.path.join(save_path, "final_test_results.json"), "w") as f:
+        json.dump(final_test_summary, f, indent=2)
+
     print(f"Best validation accuracy: {best_epoch_result['acc']*100:.2f}%")
     print(f"Best validation F1: {best_epoch_result['f1']*100:.2f}%")
+    print(
+        "Final test metrics: "
+        f"Top-1 {final_test_metrics['top1']*100:.2f}% | "
+        f"Top-5 {final_test_metrics['top5']*100:.2f}% | "
+        f"Avg. Prec. {final_test_metrics['avg_precision']*100:.2f}% | "
+        f"Avg. Recall {final_test_metrics['avg_recall']*100:.2f}% | "
+        f"Avg. F1 {final_test_metrics['avg_f1']*100:.2f}%"
+    )

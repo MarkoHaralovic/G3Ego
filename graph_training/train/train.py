@@ -1,5 +1,5 @@
 import numpy as np
-
+from tqdm import tqdm
 from .evaluate import evaluate, evaluation_metrics
 
 
@@ -8,9 +8,10 @@ def train(net, optimizer, data_loader, device, global_step, num_classes, loss_fu
 
     all_preds = []
     all_targets = []
+    all_logits = []
     total_loss = 0.0
 
-    for batch_id, data_dict in enumerate(data_loader):
+    for _, data_dict in enumerate(tqdm(data_loader, desc="Training", unit="batch", total=len(data_loader))):
         targets = data_dict["activity_label"].to(device)
         graphs = data_dict["full_action_graphs"]
 
@@ -26,6 +27,7 @@ def train(net, optimizer, data_loader, device, global_step, num_classes, loss_fu
 
         all_preds.extend(y_pred_np)
         all_targets.extend(y_true_np)
+        all_logits.append(logits.cpu().numpy())
 
         loss.backward()
         optimizer.step()
@@ -34,8 +36,11 @@ def train(net, optimizer, data_loader, device, global_step, num_classes, loss_fu
 
     y_pred_all = np.array(all_preds)
     y_true_all = np.array(all_targets)
+    y_score_all = np.concatenate(all_logits, axis=0) if all_logits else None
 
-    eval_metrics, conf_mat = evaluation_metrics(y_pred_all, y_true_all, num_classes)
+    eval_metrics, conf_mat = evaluation_metrics(
+        y_pred_all, y_true_all, num_classes, y_score=y_score_all
+    )
 
     epoch_result = {}
     epoch_result["eval_metrics"] = eval_metrics
@@ -43,8 +48,16 @@ def train(net, optimizer, data_loader, device, global_step, num_classes, loss_fu
 
     avg_loss = total_loss / len(data_loader) if len(data_loader) > 0 else 0.0
     print(f"Training average Loss: {avg_loss:.4f}")
-    print(f"Train accuracy : {eval_metrics['acc']*100:.2f}%")
-    print(f"Train f1 : {eval_metrics['f1']*100:.2f}%")
+    print(
+        "Train metrics : "
+        f"Accuracy {eval_metrics['acc']*100:.2f}% | "
+        f"f1-score {eval_metrics['f1']*100:.2f}% | "
+        f"Top-1 {eval_metrics['top1']*100:.2f}% | "
+        f"Top-5 {eval_metrics['top5']*100:.2f}% | "
+        f"Avg. Prec. {eval_metrics['avg_precision']*100:.2f}% | "
+        f"Avg. Recall {eval_metrics['avg_recall']*100:.2f}% | "
+        f"Avg. F1 {eval_metrics['avg_f1']*100:.2f}%"
+    )
 
     return global_step, epoch_result
 

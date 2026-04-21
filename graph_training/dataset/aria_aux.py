@@ -8,6 +8,12 @@ import pandas as pd
 import torch
 from torch.utils.data import Dataset
 
+from global_feature_training.data_loading.dataset_split_aria import (
+    decode_label as decode_aria_label,
+    map_or_skip_label as map_or_skip_aria_label,
+    stratified_split as stratified_split_aria,
+)
+
 TRAIN_SIZE = 0.8
 VAL_SIZE = 0.2
 
@@ -97,7 +103,7 @@ def return_train_val_samples(
         noun_replacement=noun_replacement,
         skip_na=skip_na,
     )
-    train_samples, val_samples = stratified_split(samples, val_ratio, seed=0)
+    train_samples, val_samples = stratified_split_aria(samples, val_ratio, seed=0)
 
     acts = sorted({s[3] for s in samples})
     activity_to_idx = {a: i for i, a in enumerate(acts)}
@@ -169,8 +175,8 @@ def collect_samples(
                 frame_object_features = [
                     object_features[f"frame_{int(ind)}"] for ind in frame_idxs
                 ]
-                lab = decode_label(raw_label)
-                lab = map_or_skip_label(
+                lab = decode_aria_label(raw_label)
+                lab = map_or_skip_aria_label(
                     lab, skip_labels, skip_verbs, skip_nouns, noun_replacement, skip_na
                 )
                 if lab is not None:

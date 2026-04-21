@@ -33,12 +33,14 @@
     }
   },
   "data": {
-    "input_path" : "/deepstore/datasets/dmb/ComputerVision/information_retrieval/MECCANO/updated_MECCANO_vlm_ann_Qwen3-VL-32B-Instruct-3fps",
+    "input_path" : "/home/s3758869/vlm_datasets/MECCANO_vlm_ann_Qwen3-VL-32B-Instruct-3fps",
+    "metadata_root" : "/home/s3758869/vlm_datasets/MECCANO_vlm_ann_Qwen3-VL-32B-Instruct-3fps",
     "train_actions_csv": "/deepstore/datasets/dmb/ComputerVision/information_retrieval/MECCANO/dataset/MECCANO_train_actions.csv",
     "val_actions_csv": "/deepstore/datasets/dmb/ComputerVision/information_retrieval/MECCANO/dataset/MECCANO_val_actions.csv",
-    "batch_size": 4,
-    "num_workers": 16,
-    "pin_memory": true,
+    "test_actions_csv": "/deepstore/datasets/dmb/ComputerVision/information_retrieval/MECCANO/dataset/MECCANO_test_actions.csv",
+    "batch_size": 16,
+    "num_workers": 2,
+    "pin_memory": false,
     "graph_type" : "full" 
   },
   "training": {
@@ -57,5 +59,5 @@
   "output": {
     "base_path": "/home/s3758869/egocentric_video_graph_framework_ar/outputs/meccano/graph_mlp_baseline"
   },
-  "device": "cpu"
+  "device": "cuda"
 }

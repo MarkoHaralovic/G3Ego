@@ -1,39 +1,24 @@
 import json
 import os
 import pickle
+from collections import defaultdict
 from ast import literal_eval
+from functools import partial
 
 import h5py
 import pandas as pd
 import torch
 from torch.utils.data import Dataset
-
-try:
-    from global_feature_training.data_loading.dataset_split import (
-        decode_label,
-        map_or_skip_label,
-        stratified_split,
-    )
-except ImportError:
-    from global_feature_training.data_loading.dataset_split_aria import (
-        decode_label,
-        map_or_skip_label,
-        stratified_split,
-    )
+from dataset.meccano_aux import (
+    get_split_name,
+    resolve_meccano_global_root,
+    resolve_meccano_split_root,
+    load_clip_text_embeddings
+)
 from graph_construction.graphs.full_graph import FullActionGraph
 from graph_construction.graphs.pruned_graph import PrunedActionGraph
 
-
-class ZeroTextEmbeddings(dict):
-    def __init__(self, emb_dim=512):
-        super().__init__()
-        self.emb_dim = emb_dim
-
-    def __missing__(self, key):
-        return torch.zeros(self.emb_dim, dtype=torch.float32)
-
 class GraphDatasetAria(Dataset):
-
     def __init__(self, input_path, samples, activity_to_idx, graph_type):
         self.graph_type = graph_type
 
@@ -50,10 +35,7 @@ class GraphDatasetAria(Dataset):
             self.attrs = json.load(f)
             
         clip_text_path = os.path.join(input_path, "clip_text_features.pkl")
-        if os.path.exists(clip_text_path):
-            self.clip_textual_embeddings = pickle.load(open(clip_text_path, "rb"))
-        else:
-            self.clip_textual_embeddings = ZeroTextEmbeddings()
+        self.clip_textual_embeddings = load_clip_text_embeddings(clip_text_path)
         self.input_path = input_path
 
         self.samples = samples
@@ -180,12 +162,15 @@ class GraphDatasetAria(Dataset):
 
 
 class GraphDatasetMeccano(Dataset):
-    def __init__(self, input_path, samples, activity_to_idx, graph_type):
-        self.input_path = input_path
+    def __init__(self, metadata_root, split_name, samples, activity_to_idx, graph_type):
         self.samples = samples
         self.activity_to_idx = activity_to_idx
         self.idx_to_activity = {v: k for k, v in self.activity_to_idx.items()}
         self.graph_type = graph_type
+        self.split_name = get_split_name(split_name)
+        self.split_metadata_root = resolve_meccano_split_root(metadata_root, self.split_name)
+        self.global_metadata_root = resolve_meccano_global_root(metadata_root)
+        self.metadata_root = self.global_metadata_root or self.split_metadata_root
         self.sample_index = [
             (
                 sample["clip_name"],
@@ -197,35 +182,124 @@ class GraphDatasetMeccano(Dataset):
             for sample in samples
         ]
         self._clip_cache = {}
+        self.default_gdino_feat_dim = 256
 
-        self.metadata_root = self._resolve_metadata_root(input_path)
-        with open(os.path.join(self.metadata_root, "verbs.json"), "r") as f:
-            self.verbs = json.load(f)
-        with open(os.path.join(self.metadata_root, "objects.json"), "r") as f:
-            self.objs = json.load(f)
-        with open(os.path.join(self.metadata_root, "relationships.json"), "r") as f:
-            self.rels = json.load(f)
-        with open(os.path.join(self.metadata_root, "attributes.json"), "r") as f:
-            self.attrs = json.load(f)
+        self._load_metadata_vocabularies()
+        self.clip_textual_embeddings = self._load_clip_text_embeddings()
 
+    def _load_json(self, path):
+        with open(path, "r") as f:
+            return json.load(f)
+
+    def _load_clip_text_embeddings(self):
         clip_text_path = os.path.join(self.metadata_root, "clip_text_features.pkl")
-        if os.path.exists(clip_text_path):
-            self.clip_textual_embeddings = pickle.load(open(clip_text_path, "rb"))
-        else:
-            self.clip_textual_embeddings = ZeroTextEmbeddings()
+        return load_clip_text_embeddings(clip_text_path)
 
-    def _resolve_metadata_root(self, input_path):
-        if os.path.exists(os.path.join(input_path, "verbs.json")):
-            return input_path
+    def _load_vocab_group(self, root, prefix=""):
+        names = ("verbs", "objects", "relationships", "attributes")
+        suffix = ".json"
+        return {
+            name: self._load_json(os.path.join(root, f"{prefix}{name}{suffix}"))
+            for name in names
+        }
 
-        for split_name in ("Train", "Val", "Test"):
-            split_root = os.path.join(input_path, split_name)
-            if os.path.exists(os.path.join(split_root, "verbs.json")):
-                return split_root
-
-        raise FileNotFoundError(
-            f"Could not find verbs.json/objects.json metadata under {input_path}"
+    def _load_metadata_vocabularies(self):
+        global_vocab = (
+            self._load_vocab_group(self.global_metadata_root, prefix="global_")
+            if self.global_metadata_root is not None
+            else self._load_vocab_group(self.split_metadata_root)
         )
+        self.verbs = global_vocab["verbs"]
+        self.objs = global_vocab["objects"]
+        self.rels = global_vocab["relationships"]
+        self.attrs = global_vocab["attributes"]
+
+        split_vocab = self._load_vocab_group(self.split_metadata_root)
+        split_objs = split_vocab["objects"]
+        self.split_obj_idx_to_name = {
+            idx: name for name, idx in split_objs.items()
+        }
+        self.split_to_global_obj_idx = {
+            split_idx: self.objs[name]
+            for split_idx, name in self.split_obj_idx_to_name.items()
+            if name in self.objs
+        }
+
+    def _zero_gdino_feature(self, gdino_feat_dim):
+        return torch.zeros(gdino_feat_dim, dtype=torch.float32)
+
+    def _empty_grounding_payload(self, gdino_feat_dim):
+        return {
+            "objects": {},
+            "object_gazed_at": {
+                "feats": self._zero_gdino_feature(gdino_feat_dim),
+                "phrase": None,
+                "idx": None,
+            },
+        }
+
+    def _resolve_grounding_path(self, clip_dir):
+        matches = sorted(
+            os.path.join(clip_dir, file_name)
+            for file_name in os.listdir(clip_dir)
+            if file_name.startswith("grounding_results_")
+            and file_name.endswith(".pkl")
+        )
+        if not matches:
+            return None
+
+        for preferred_name in (
+            "grounding_results_gdino_base.pkl",
+            "grounding_results_gdino_tiny.pkl",
+        ):
+            preferred_path = os.path.join(clip_dir, preferred_name)
+            if preferred_path in matches:
+                return preferred_path
+
+        return matches[0]
+
+    def _infer_gdino_feat_dim(self, grounding_results):
+        for payload in grounding_results.values():
+            for entry in payload.get("objects", {}).values():
+                feats = entry.get("feats")
+                if feats is not None:
+                    return int(feats.shape[0])
+            gaze_feats = payload.get("object_gazed_at", {}).get("feats")
+            if gaze_feats is not None:
+                return int(gaze_feats.shape[0])
+        return self.default_gdino_feat_dim
+
+    def _remap_grounding_payload(self, payload, gdino_feat_dim):
+        remapped_objects = {}
+        for split_obj_idx, entry in payload.get("objects", {}).items():
+            global_obj_idx = self.split_to_global_obj_idx.get(split_obj_idx)
+            if global_obj_idx is None:
+                continue
+
+            feats = entry.get("feats")
+            if feats is None:
+                feats = self._zero_gdino_feature(gdino_feat_dim)
+
+            remapped_objects[global_obj_idx] = {
+                "feats": feats,
+                "phrase": entry.get("phrase"),
+                "confidence": entry.get("confidence", 0.0),
+            }
+
+        gaze_entry = payload.get("object_gazed_at", {})
+        gaze_feats = gaze_entry.get("feats")
+        if gaze_feats is None:
+            gaze_feats = self._zero_gdino_feature(gdino_feat_dim)
+        gaze_idx = gaze_entry.get("idx")
+
+        return {
+            "objects": remapped_objects,
+            "object_gazed_at": {
+                "feats": gaze_feats,
+                "phrase": gaze_entry.get("phrase"),
+                "idx": self.split_to_global_obj_idx.get(gaze_idx),
+            },
+        }
 
     def _derive_parse_annotations(self, clip_dir):
         parse_annotations = pd.read_csv(os.path.join(clip_dir, "parse_annotation.csv"))
@@ -272,10 +346,20 @@ class GraphDatasetMeccano(Dataset):
                 frame_name = frame_name.decode("utf-8")
             frame_num_to_h5_idx[int(os.path.splitext(frame_name)[0])] = idx
 
+        grounding_results = None
+        gdino_feat_dim = self.default_gdino_feat_dim
+        grounding_path = self._resolve_grounding_path(clip_dir)
+        if grounding_path is not None:
+            with open(grounding_path, "rb") as f:
+                grounding_results = pickle.load(f)
+            gdino_feat_dim = self._infer_gdino_feat_dim(grounding_results)
+
         resources = {
             "parse_annotations": parse_annotations,
             "h5_file": h5_file,
             "frame_num_to_h5_idx": frame_num_to_h5_idx,
+            "grounding_results": grounding_results,
+            "gdino_feat_dim": gdino_feat_dim,
         }
         self._clip_cache[clip_dir] = resources
         return resources
@@ -290,6 +374,8 @@ class GraphDatasetMeccano(Dataset):
             parse_annotations = resources["parse_annotations"]
             h5_file = resources["h5_file"]
             frame_num_to_h5_idx = resources["frame_num_to_h5_idx"]
+            grounding_results = resources["grounding_results"]
+            gdino_feat_dim = resources["gdino_feat_dim"]
 
             frame_rows = []
             frame_feats = []
@@ -307,7 +393,15 @@ class GraphDatasetMeccano(Dataset):
                 frame_feats.append(
                     h5_file["visual_features"][frame_num_to_h5_idx[frame_number]]
                 )
-                obj_feats.append({"objects": {}, "object_gazed_at": {}})
+                frame_file = str(frame_row.iloc[0]["frame_file"])
+                if grounding_results is not None and frame_file in grounding_results:
+                    obj_feats.append(
+                        self._remap_grounding_payload(
+                            grounding_results[frame_file], gdino_feat_dim
+                        )
+                    )
+                else:
+                    obj_feats.append(self._empty_grounding_payload(gdino_feat_dim))
 
             frame_parsed_anns = pd.DataFrame(frame_rows).reset_index(drop=True)
             frame_anns = pd.DataFrame(

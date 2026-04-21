@@ -11,6 +11,7 @@ def evaluate(net, data_loader, device, num_classes):
 
     all_preds = []
     all_targets = []
+    all_logits = []
 
     with torch.no_grad():
         for _, data_dict in enumerate(data_loader):
@@ -24,11 +25,15 @@ def evaluate(net, data_loader, device, num_classes):
 
             all_preds.extend(pred.cpu().numpy())
             all_targets.extend(targets.cpu().numpy())
+            all_logits.append(logits.cpu().numpy())
 
     y_pred_np = np.array(all_preds)
     y_true_np = np.array(all_targets)
+    y_score_np = np.concatenate(all_logits, axis=0) if all_logits else None
 
-    eval_metrics, conf_mat = evaluation_metrics(y_pred_np, y_true_np, num_classes)
+    eval_metrics, conf_mat = evaluation_metrics(
+        y_pred_np, y_true_np, num_classes, y_score=y_score_np
+    )
 
     epoch_result = {}
     epoch_result["eval_metrics"] = eval_metrics
@@ -37,15 +42,52 @@ def evaluate(net, data_loader, device, num_classes):
     return epoch_result, y_pred_np, y_true_np
 
 
-def evaluation_metrics(y_pred, y_true, num_classes):
+def evaluation_metrics(y_pred, y_true, num_classes, y_score=None):
 
     confusion_matrix = metrics.confusion_matrix(
         y_true=y_true, y_pred=y_pred, labels=tuple(range(num_classes))
     )
 
+    top1 = metrics.accuracy_score(y_true=y_true, y_pred=y_pred)
+    if y_score is not None:
+        k = min(5, num_classes)
+        top5 = metrics.top_k_accuracy_score(
+            y_true=y_true,
+            y_score=y_score,
+            k=k,
+            labels=tuple(range(num_classes)),
+        )
+    else:
+        top5 = top1
+
     results = {
-        "acc": metrics.accuracy_score(y_true=y_true, y_pred=y_pred),
-        "f1": metrics.f1_score(y_true=y_true, y_pred=y_pred, average="macro"),
+        "top1": top1,
+        "top5": top5,
+        "avg_precision": metrics.precision_score(
+            y_true=y_true,
+            y_pred=y_pred,
+            average="macro",
+            zero_division=0,
+        ),
+        "avg_recall": metrics.recall_score(
+            y_true=y_true,
+            y_pred=y_pred,
+            average="macro",
+            zero_division=0,
+        ),
+        "avg_f1": metrics.f1_score(
+            y_true=y_true,
+            y_pred=y_pred,
+            average="macro",
+            zero_division=0,
+        ),
+        "acc": top1,
+        "f1": metrics.f1_score(
+            y_true=y_true,
+            y_pred=y_pred,
+            average="macro",
+            zero_division=0,
+        ),
     }
 
     return results, confusion_matrix
