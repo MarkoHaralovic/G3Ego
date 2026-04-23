@@ -240,6 +240,8 @@ class GraphMLP(nn.Module):
         device="cuda",
         use_pool=True,
         use_proj=True,
+        head_dropout=0.5,
+        head_activation="gelu",
     ):
         super().__init__()
         self.device = device
@@ -257,6 +259,8 @@ class GraphMLP(nn.Module):
         self.input_dim = self.action_graph_embedder.out_dim
         self.fc_layers_num = fc_layers_num
         self.n_classes = n_classes
+        self.head_dropout = float(head_dropout)
+        self.head_activation = str(head_activation).lower()
 
         self.pool = use_pool
         self.proj = use_proj
@@ -299,8 +303,16 @@ class GraphMLP(nn.Module):
                 layers.append(
                     nn.Linear(self.final_graph_emb_dim, self.final_graph_emb_dim)
                 )
-                layers.append(nn.Dropout(0.2))
-                layers.append(nn.ReLU())
+                if self.head_dropout > 0:
+                    layers.append(nn.Dropout(self.head_dropout))
+                if self.head_activation == "gelu":
+                    layers.append(nn.GELU())
+                elif self.head_activation == "relu":
+                    layers.append(nn.ReLU())
+                else:
+                    raise ValueError(
+                        f"Unsupported head activation: {self.head_activation}"
+                    )
             layers.append(nn.Linear(self.final_graph_emb_dim, self.n_classes))
             fc = nn.Sequential(*layers)
 

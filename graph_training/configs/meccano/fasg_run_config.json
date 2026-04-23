@@ -17,18 +17,18 @@
       "k_aux" : 2,
       "k_trip" :  2,
       "clip_dim" : 1280,
-      "clip_emb_dim" : 1280,
+      "clip_emb_dim" : 640,
       "obj_feat_dim" : 256,  
       "use_triplets" : true,  
       "use_clip_text_emb" : false
     },
     "projector" : {
-      "graph_emb_dim" : 768,
+      "graph_emb_dim" : 512,
       "layer_norm" : true,
       "gelu" : true
     },
     "attention_pooler" : {
-      "graph_pool_interim_feat" : 256,
+      "graph_pool_interim_feat" : 128,
       "final_graph_emb_dim" : 256
     }
   },
@@ -45,11 +45,11 @@
     "graph_type" : "full" 
   },
   "training": {
-    "num_epochs": 20,
+    "num_epochs": 8,
     "optimizer": "adam",
     "learning_rate": 3e-04,
     "weight_decay": 1e-05,
-    "scheduler_factor": 0.97,
+    "scheduler_factor": 0.95,
     "criterion_metrics": ["f1", "acc"],
     "loss": {
       "name": "cross_entropy",

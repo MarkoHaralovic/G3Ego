@@ -51,21 +51,12 @@ def load_best_checkpoint_if_available(model, save_path, metric="acc", device="cp
     return checkpoint_path
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--config-path", type=str, help="Path to the experiment config JSON file"
-    )
-    args = parser.parse_args()
-    config_path = args.config_path
-
-    with open(config_path, "r") as f:
-        config = json.load(f)
-
+def main(args, config):
     mlp_cfg = config["mlp"]
     action_graph_cfg = mlp_cfg["action_graph_embedder"]
     projector_cfg = mlp_cfg["projector"]
     attention_pool_cfg = mlp_cfg["attention_pooler"]
+    head_cfg = mlp_cfg.get("head", {})
 
     experiment_name = config["experiment_name"]
     print(f"Running experiment: {experiment_name}")
@@ -93,6 +84,8 @@ if __name__ == "__main__":
     graph_emb_dim = projector_cfg["graph_emb_dim"]
     layer_norm = projector_cfg.get("layer_norm", True)
     gelu = projector_cfg.get("gelu", True)
+    head_dropout = head_cfg.get("dropout", 0.5)
+    head_activation = head_cfg.get("activation", "gelu")
 
     graph_pool_interim_feat = attention_pool_cfg["graph_pool_interim_feat"]
     final_graph_emb_dim = attention_pool_cfg["final_graph_emb_dim"]
@@ -233,6 +226,8 @@ if __name__ == "__main__":
         graph_pool_interim_feat=graph_pool_interim_feat,
         layer_norm=layer_norm,
         gelu=gelu,
+        head_dropout=head_dropout,
+        head_activation=head_activation,
         device=device,
         action_graph_kwargs=action_graph_cfg,
         use_pool=use_pool,
@@ -422,3 +417,16 @@ if __name__ == "__main__":
         f"Avg. Recall {final_test_metrics['avg_recall']*100:.2f}% | "
         f"Avg. F1 {final_test_metrics['avg_f1']*100:.2f}%"
     )
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--config-path", type=str, help="Path to the experiment config JSON file"
+    )
+    args = parser.parse_args()
+    config_path = args.config_path
+
+    with open(config_path, "r") as f:
+        config = json.load(f)
+
+    main(args, config)

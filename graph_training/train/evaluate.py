@@ -128,7 +128,8 @@ def build_loss_fn(loss_cfg, class_weights):
     gamma = float(loss_cfg.get("focal_gamma", 2.0))
 
     def ce_loss(logits, targets):
-        return F.cross_entropy(logits, targets, weight=class_weights)
+        weight = class_weights.to(logits.device) if class_weights is not None else None
+        return F.cross_entropy(logits, targets, weight=weight)
 
     def focal_loss(logits, targets):
         logp = F.log_softmax(logits, dim=1)

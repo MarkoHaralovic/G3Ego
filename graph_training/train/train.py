@@ -11,7 +11,7 @@ def train(net, optimizer, data_loader, device, global_step, num_classes, loss_fu
     all_logits = []
     total_loss = 0.0
 
-    for _, data_dict in enumerate(tqdm(data_loader, desc="Training", unit="batch", total=len(data_loader))):
+    for _, data_dict in enumerate(tqdm(data_loader, desc="Training", unit="batch", total=len(data_loader), miniters=20)):
         targets = data_dict["activity_label"].to(device)
         graphs = data_dict["full_action_graphs"]
 
