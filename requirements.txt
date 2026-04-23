@@ -7,6 +7,7 @@ torchvision
 matplotlib
 transformers
 tqdm
+optuna
 pandas
 pillow
 bitsandbytes

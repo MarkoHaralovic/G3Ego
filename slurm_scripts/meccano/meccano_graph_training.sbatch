@@ -5,7 +5,7 @@
 #SBATCH --time=12:00:00
 #SBATCH --gres=gpu:1
 #SBATCH --output /home/s3758869/egocentric_video_graph_framework_ar/slurm_outputs/meccano_graph_training_%J.log
-#SBATCH --constraint="a40|a100|l40|l40s|h200nvl|rtx6000pro"
+#SBATCH --constraint="a40|a100|l40|l40s|h200nvl"
 
 nvidia-smi
 
@@ -15,4 +15,4 @@ export http_proxy="http://proxy.utwente.nl:3128"
 export https_proxy="http://proxy.utwente.nl:3128"
 
 cd /home/s3758869/egocentric_video_graph_framework_ar
-python graph_training/train_graph_mlp_meccano.py --config graph_training/configs/meccano/fasg_run_config.json 
+python graph_training/train_graph_mlp_meccano.py --config graph_training/configs/meccano/action_recognition/fasg_run_config.json

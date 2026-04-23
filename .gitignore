@@ -222,3 +222,8 @@ SlowFast/MECCANO_chkpts/
 graph_training/test_graph_construction.py
 graph_training/test.py
 graph_training/create_meccano_next_action_csvs.py
+
+
+meccano_graph_mlp_next_action_hpo.db
+smoke_hpo_review.db
+tmp_optuna.db
