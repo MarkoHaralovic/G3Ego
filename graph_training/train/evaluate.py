@@ -112,7 +112,7 @@ def store_model(net, opt, epoch, save_path, metric="f1"):
     )
 
 
-def compute_class_weights(train_dataset, activity_to_idx):
+def compute_class_weights(train_dataset, activity_to_idx, alpha = 0.5 ):
     counts = torch.zeros(len(activity_to_idx), dtype=torch.float)
     for _, _, label_str, *_ in train_dataset.sample_index:
         counts[activity_to_idx[label_str]] += 1
@@ -120,7 +120,8 @@ def compute_class_weights(train_dataset, activity_to_idx):
 
     weights = torch.zeros_like(counts)
     weights = total / (len(activity_to_idx) * counts)
-    return weights
+    weights = alpha * weights + (1 - alpha) * torch.ones_like(weights)
+    return np.sqrt(weights)
 
 
 def build_loss_fn(loss_cfg, class_weights):

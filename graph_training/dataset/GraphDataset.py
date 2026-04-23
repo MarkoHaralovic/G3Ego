@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import pickle
@@ -209,6 +210,8 @@ class GraphDatasetMeccano(Dataset):
         if self.easg_cache_path is None:
             return None
         num_graphs = len(frame_numbers)
+        frame_key = ",".join(str(frame_number) for frame_number in frame_numbers)
+        frame_hash = hashlib.md5(frame_key.encode("utf-8")).hexdigest()[:8]
         cache_dir = os.path.join(
             self.easg_cache_path,
             self.split_name,
@@ -216,7 +219,9 @@ class GraphDatasetMeccano(Dataset):
             clip_name,
         )
         os.makedirs(cache_dir, exist_ok=True)
-        return os.path.join(cache_dir, f"sample_{sample_id:06d}_g{num_graphs}.pt")
+        return os.path.join(
+            cache_dir, f"sample_{sample_id:06d}_g{num_graphs}_{frame_hash}.pt"
+        )
 
     def _tensorize_cached_value(self, value):
         if isinstance(value, torch.Tensor):

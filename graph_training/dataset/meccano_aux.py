@@ -1,8 +1,6 @@
 import csv
-import hashlib
 import os
 import pickle
-import random
 from collections import defaultdict
 from functools import partial
 
@@ -62,16 +60,12 @@ def select_action_frame_numbers(frame_numbers, num_graphs, selection_parts):
     if not frame_numbers:
         return None
 
-    def _stable_seed(*selected_parts):
-        selection_key = "::".join(str(part) for part in selected_parts)
-        return int(hashlib.md5(selection_key.encode("utf-8")).hexdigest()[:8], 16)
-
     frame_numbers = sorted(frame_numbers)
-    if len(frame_numbers) >= num_graphs:
-        rng = random.Random(_stable_seed(*selection_parts))
-        frame_numbers = sorted(rng.sample(frame_numbers, num_graphs))
-    else:
-        frame_numbers = frame_numbers + [frame_numbers[-1]] * (num_graphs - len(frame_numbers))
+    if len(frame_numbers) > num_graphs:
+        indices = torch.linspace(
+            0, len(frame_numbers) - 1, steps=num_graphs
+        ).round().long()
+        frame_numbers = [frame_numbers[idx] for idx in indices.tolist()]
 
     return frame_numbers
 

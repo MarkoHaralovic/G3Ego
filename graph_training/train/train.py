@@ -11,7 +11,7 @@ def train(net, optimizer, data_loader, device, global_step, num_classes, loss_fu
     all_logits = []
     total_loss = 0.0
 
-    for _, data_dict in enumerate(tqdm(data_loader, desc="Training", unit="batch", total=len(data_loader), miniters=20)):
+    for batch_idx, data_dict in enumerate(data_loader):
         targets = data_dict["activity_label"].to(device)
         graphs = data_dict["full_action_graphs"]
 
@@ -33,6 +33,9 @@ def train(net, optimizer, data_loader, device, global_step, num_classes, loss_fu
         optimizer.step()
         global_step += 1
         total_loss += loss.item()
+
+        if (batch_idx + 1) % 50 == 0:
+            print(f"Batch {batch_idx + 1}, Loss: {loss.item():.4f}")
 
     y_pred_all = np.array(all_preds)
     y_true_all = np.array(all_targets)
