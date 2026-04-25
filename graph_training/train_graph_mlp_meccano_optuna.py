@@ -239,12 +239,14 @@ def train_one_run(config, trial=None, run_test=True, objective_metric="f1"):
     graph_type = config["data"].get("graph_type", "full")
 
     if graph_type == "pruned":
-        num_rels = len(rels)
-        if "aux_direct_object" in rels:
-            num_rels -= 1
-        if "aux_verb" in rels:
-            num_rels -= 1
-        num_rels += 1
+        pruned_rels = {
+            rel_name: rel_idx
+            for rel_name, rel_idx in rels.items()
+            if rel_name not in {"aux_direct_object", "aux_verb"}
+        }
+        if "gazed_at" not in pruned_rels:
+            pruned_rels["gazed_at"] = max(pruned_rels.values(), default=-1) + 1
+        num_rels = max(pruned_rels.values(), default=-1) + 1
     else:
         num_rels = len(rels)
 
