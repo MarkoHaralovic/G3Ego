@@ -62,9 +62,12 @@ def select_action_frame_numbers(frame_numbers, num_graphs, selection_parts):
 
     frame_numbers = sorted(frame_numbers)
     if len(frame_numbers) > num_graphs:
-        indices = torch.linspace(
-            0, len(frame_numbers) - 1, steps=num_graphs
-        ).round().long()
+        if num_graphs == 1:
+            indices = torch.tensor([len(frame_numbers) // 2], dtype=torch.long)
+        else:
+            indices = torch.linspace(
+                0, len(frame_numbers) - 1, steps=num_graphs
+            ).round().long()
         frame_numbers = [frame_numbers[idx] for idx in indices.tolist()]
 
     return frame_numbers

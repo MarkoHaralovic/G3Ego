@@ -245,7 +245,9 @@ class GraphDatasetMeccano(Dataset):
             "activity_name": output["activity_name"],
             "full_action_graphs": self._build_cached_graphs(action_scene_graphs),
         }
-        torch.save(cached_output, cache_path)
+        tmp_cache_path = f"{cache_path}.tmp.{os.getpid()}"
+        torch.save(cached_output, tmp_cache_path)
+        os.replace(tmp_cache_path, cache_path)
         return cached_output
 
     def _load_vocab_group(self, root, prefix=""):
@@ -425,7 +427,13 @@ class GraphDatasetMeccano(Dataset):
             clip_name, sample_id, label_str, clip_dir, frame_numbers = self.sample_index[idx]
             cache_path = self._resolve_cache_path(clip_name, sample_id, frame_numbers)
             if cache_path is not None and os.path.exists(cache_path):
-                return torch.load(cache_path, map_location="cpu")
+                try:
+                    return torch.load(cache_path, map_location="cpu")
+                except (EOFError, RuntimeError, OSError, pickle.UnpicklingError) as e:
+                    print(
+                        f"Ignoring unreadable EASG cache {cache_path}: "
+                        f"{type(e).__name__}: {e}"
+                    )
 
             resources = self._load_clip_resources(clip_dir)
             parse_annotations = resources["parse_annotations"]

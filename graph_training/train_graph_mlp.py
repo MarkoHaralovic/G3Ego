@@ -246,12 +246,13 @@ if __name__ == "__main__":
             f"\nValidation - Accuracy: {val_metrics['acc']*100:.2f}%, F1: {val_metrics['f1']*100:.2f}%"
         )
 
-        if val_metrics["acc"] > best_epoch_result["acc"]:
-            best_epoch_result["acc"] = val_metrics["acc"]
+        checkpoint_acc_metric = val_metrics.get("top5", val_metrics["acc"])
+        if checkpoint_acc_metric > best_epoch_result["acc"]:
+            best_epoch_result["acc"] = checkpoint_acc_metric
             store_model(
                 net=model, opt=opt, epoch=epoch, save_path=save_path, metric="acc"
             )
-            print(f"New best accuracy model saved: {val_metrics['acc']*100:.2f}%")
+            print(f"New best Top-5 accuracy model saved: {checkpoint_acc_metric*100:.2f}%")
 
         if val_metrics["f1"] > best_epoch_result["f1"]:
             best_epoch_result["f1"] = val_metrics["f1"]
@@ -291,5 +292,5 @@ if __name__ == "__main__":
             }
         json.dump(json_results, f, indent=2)
 
-    print(f"Best validation accuracy: {best_epoch_result['acc']*100:.2f}%")
+    print(f"Best validation Top-5 accuracy: {best_epoch_result['acc']*100:.2f}%")
     print(f"Best validation F1: {best_epoch_result['f1']*100:.2f}%")

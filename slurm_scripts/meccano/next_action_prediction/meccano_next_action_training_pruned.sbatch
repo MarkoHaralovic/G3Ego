@@ -15,4 +15,4 @@ export http_proxy="http://proxy.utwente.nl:3128"
 export https_proxy="http://proxy.utwente.nl:3128"
 
 cd /home/s3758869/egocentric_video_graph_framework_ar
-python graph_training/train_graph_mlp_meccano.py --config graph_training/configs/meccano/next_action_prediction/gpasg_next_action.json
+python graph_training/train_graph_mlp_meccano.py --config-path graph_training/configs/meccano/next_action_prediction/gpasg_next_action.json

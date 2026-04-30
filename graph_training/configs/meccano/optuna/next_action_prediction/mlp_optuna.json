@@ -16,7 +16,7 @@
     }
   },
   "objective": {
-    "metric": "top1",
+    "metric": "top5",
     "run_test": false
   },
   "fixed_overrides": [

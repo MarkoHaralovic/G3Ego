@@ -124,9 +124,18 @@ def compute_class_weights(train_dataset, activity_to_idx, alpha = 0.5 ):
     return np.sqrt(weights)
 
 
-def build_loss_fn(loss_cfg, class_weights):
+def build_loss_fn(loss_cfg, class_weights, epoch=None, num_epochs=None):
     name = loss_cfg["name"]
     gamma = float(loss_cfg.get("focal_gamma", 2.0))
+
+    if name == "focal_loss_annealed":
+        gamma_start = float(loss_cfg.get("focal_gamma_start", 2.0))
+        gamma_end = float(loss_cfg.get("focal_gamma_end", 0.1))
+        if epoch is None or num_epochs is None or num_epochs <= 1:
+            gamma = gamma_start
+        else:
+            progress = min(max(epoch / float(num_epochs - 1), 0.0), 1.0)
+            gamma = gamma_start * ((gamma_end / gamma_start) ** progress)
 
     def ce_loss(logits, targets):
         weight = class_weights.to(logits.device) if class_weights is not None else None
@@ -148,5 +157,6 @@ def build_loss_fn(loss_cfg, class_weights):
 
     if name == "cross_entropy":
         return ce_loss
-    if name in {"focal_loss"}:
+    if name in {"focal_loss", "focal_loss_annealed"}:
         return focal_loss
+    raise ValueError(f"Unsupported loss function: {name}")

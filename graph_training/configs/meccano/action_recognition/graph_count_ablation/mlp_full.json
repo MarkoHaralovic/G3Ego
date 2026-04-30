@@ -1,0 +1,8 @@
+{
+  "model_type": "mlp",
+  "selected_config_path": "/home/s3758869/egocentric_video_graph_framework_ar/outputs/meccano/action_recognition/selected_top1_20/mlp_full/meccano_ar_mlp_full_optuna_trial_13_acc_finetune_20ep/dino_model_fc_layer_1_num_epoch_20_graph_emb_dim_128_final_graph_emb_dim_192_20260427_101851/experiment_config.json",
+  "experiment_name_prefix": "meccano_ar_mlp_full_best_top1_graph_count",
+  "objective_metric": "top5",
+  "run_test": true,
+  "output_base_path": "/home/s3758869/egocentric_video_graph_framework_ar/outputs/meccano/action_recognition/graph_count_ablation/mlp_full"
+}

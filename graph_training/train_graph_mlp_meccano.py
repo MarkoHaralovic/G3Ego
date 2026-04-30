@@ -6,6 +6,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import argparse
 import json
 import os
+from collections import Counter
 from datetime import datetime
 
 import torch
@@ -19,7 +20,7 @@ from dataset.meccano_aux import (
     return_meccano_train_val_test_samples,
 )
 from modeling.GraphMLP import GraphMLP
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, WeightedRandomSampler
 from tqdm import tqdm
 from train.evaluate import (
     build_loss_fn,
@@ -28,6 +29,24 @@ from train.evaluate import (
     store_model,
 )
 from train.train import do_epoch
+
+
+def build_train_sampler(dataset, activity_to_idx, sampler_cfg):
+    if not sampler_cfg or sampler_cfg.get("name") in {None, "none"}:
+        return None
+    if sampler_cfg.get("name") != "balanced":
+        raise ValueError(f"Unsupported sampler: {sampler_cfg.get('name')}")
+
+    labels = [activity_to_idx[label_str] for _, _, label_str, _, _ in dataset.sample_index]
+    counts = Counter(labels)
+    power = float(sampler_cfg.get("power", 1.0))
+    weights = torch.tensor(
+        [1.0 / (counts[label] ** power) for label in labels],
+        dtype=torch.double,
+    )
+    num_samples = int(sampler_cfg.get("num_samples", len(weights)))
+    replacement = bool(sampler_cfg.get("replacement", True))
+    return WeightedRandomSampler(weights, num_samples=num_samples, replacement=replacement)
 
 
 def load_best_checkpoint_if_available(model, save_path, metric="acc", device="cpu"):
@@ -49,6 +68,39 @@ def load_best_checkpoint_if_available(model, save_path, metric="acc", device="cp
     checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
     model.load_state_dict(checkpoint["model_state_dict"])
     return checkpoint_path
+
+
+def evaluate_checkpoint(
+    model,
+    save_path,
+    metric,
+    test_loader,
+    test_dataset,
+    device,
+    fallback_message,
+):
+    checkpoint_path = load_best_checkpoint_if_available(
+        model, save_path, metric=metric, device=device
+    )
+    if checkpoint_path is not None:
+        print(f"Loaded best {metric} checkpoint for test: {checkpoint_path}")
+    else:
+        print(fallback_message)
+
+    test_result, test_preds, test_targets = evaluate(
+        model,
+        test_loader,
+        device,
+        num_classes=len(test_dataset.activity_to_idx),
+    )
+    test_metrics = test_result["eval_metrics"]
+    return {
+        "checkpoint_metric": metric,
+        "checkpoint_path": checkpoint_path,
+        "metrics": {k: float(v) for k, v in test_metrics.items()},
+        "predictions": [test_dataset.idx_to_activity[i] for i in test_preds],
+        "targets": [test_dataset.idx_to_activity[i] for i in test_targets],
+    }
 
 
 def main(args, config):
@@ -190,10 +242,13 @@ def main(args, config):
     assert train_dataset.activity_to_idx == test_dataset.activity_to_idx
     cls_mapping = train_dataset.activity_to_idx
 
+    sampler_cfg = config["training"].get("sampler", {"name": "none"})
+    train_sampler = build_train_sampler(train_dataset, activity_to_idx, sampler_cfg)
     train_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
-        shuffle=True,
+        shuffle=train_sampler is None,
+        sampler=train_sampler,
         num_workers=num_workers,
         pin_memory=pin_memory,
         collate_fn=feature_collate_fn,
@@ -276,7 +331,7 @@ def main(args, config):
     os.makedirs(save_path, exist_ok=True)
 
     results = {}
-    best_epoch_result = {"acc": -1, "f1": -1}
+    best_epoch_result = {"top1": -1, "top5": -1, "f1": -1}
     global_step = 0
 
     experiment_config = {
@@ -288,6 +343,8 @@ def main(args, config):
         "weight_decay": weight_decay,
         "optimizer": optimizer_name,
         "scheduler_factor": scheduler_factor,
+        "sampler": sampler_cfg,
+        "loss": config["training"]["loss"],
         "num_classes": len(cls_mapping),
         "device": device,
         "mlp": config["mlp"],
@@ -342,12 +399,22 @@ def main(args, config):
             f"Avg. F1 {val_metrics['avg_f1']*100:.2f}%"
         )
 
-        if val_metrics["acc"] > best_epoch_result["acc"]:
-            best_epoch_result["acc"] = val_metrics["acc"]
+        if val_metrics["top1"] > best_epoch_result["top1"]:
+            best_epoch_result["top1"] = val_metrics["top1"]
+            store_model(
+                net=model, opt=opt, epoch=epoch, save_path=save_path, metric="top1"
+            )
             store_model(
                 net=model, opt=opt, epoch=epoch, save_path=save_path, metric="acc"
             )
-            print(f"New best accuracy model saved: {val_metrics['acc']*100:.2f}%")
+            print(f"New best Top-1 accuracy model saved: {val_metrics['top1']*100:.2f}%")
+
+        if val_metrics["top5"] > best_epoch_result["top5"]:
+            best_epoch_result["top5"] = val_metrics["top5"]
+            store_model(
+                net=model, opt=opt, epoch=epoch, save_path=save_path, metric="top5"
+            )
+            print(f"New best Top-5 accuracy model saved: {val_metrics['top5']*100:.2f}%")
 
         if val_metrics["f1"] > best_epoch_result["f1"]:
             best_epoch_result["f1"] = val_metrics["f1"]
@@ -385,39 +452,52 @@ def main(args, config):
             }
         json.dump(json_results, f, indent=2)
 
-    best_acc_checkpoint = load_best_checkpoint_if_available(
-        model, save_path, metric="acc", device=device
-    )
-    if best_acc_checkpoint is not None:
-        print(f"Loaded best Top-1 checkpoint for final test: {best_acc_checkpoint}")
-    else:
-        print("No best Top-1 checkpoint found; using final epoch model for test.")
-
-    final_test_result, test_preds, test_targets = evaluate(
+    top1_test_summary = evaluate_checkpoint(
         model,
+        save_path,
+        "top1",
         test_loader,
+        test_dataset,
         device,
-        num_classes=len(test_dataset.activity_to_idx),
+        "No best top1 checkpoint found; using final epoch model for top1 test.",
     )
-    final_test_metrics = final_test_result["eval_metrics"]
-    final_test_summary = {
-        "metrics": {k: float(v) for k, v in final_test_metrics.items()},
-        "predictions": [test_dataset.idx_to_activity[i] for i in test_preds],
-        "targets": [test_dataset.idx_to_activity[i] for i in test_targets],
-    }
+    top5_test_summary = evaluate_checkpoint(
+        model,
+        save_path,
+        "top5",
+        test_loader,
+        test_dataset,
+        device,
+        "No best top5 checkpoint found; using current model for top5 test.",
+    )
+
+    with open(os.path.join(save_path, "final_test_results_top1.json"), "w") as f:
+        json.dump(top1_test_summary, f, indent=2)
+
+    with open(os.path.join(save_path, "final_test_results_top5.json"), "w") as f:
+        json.dump(top5_test_summary, f, indent=2)
 
     with open(os.path.join(save_path, "final_test_results.json"), "w") as f:
-        json.dump(final_test_summary, f, indent=2)
+        json.dump(top1_test_summary, f, indent=2)
 
-    print(f"Best validation accuracy: {best_epoch_result['acc']*100:.2f}%")
+    print(f"Best validation Top-1 accuracy: {best_epoch_result['top1']*100:.2f}%")
+    print(f"Best validation Top-5 accuracy: {best_epoch_result['top5']*100:.2f}%")
     print(f"Best validation F1: {best_epoch_result['f1']*100:.2f}%")
     print(
-        "Final test metrics: "
-        f"Top-1 {final_test_metrics['top1']*100:.2f}% | "
-        f"Top-5 {final_test_metrics['top5']*100:.2f}% | "
-        f"Avg. Prec. {final_test_metrics['avg_precision']*100:.2f}% | "
-        f"Avg. Recall {final_test_metrics['avg_recall']*100:.2f}% | "
-        f"Avg. F1 {final_test_metrics['avg_f1']*100:.2f}%"
+        "Best Top-1 checkpoint test metrics: "
+        f"Top-1 {top1_test_summary['metrics']['top1']*100:.2f}% | "
+        f"Top-5 {top1_test_summary['metrics']['top5']*100:.2f}% | "
+        f"Avg. Prec. {top1_test_summary['metrics']['avg_precision']*100:.2f}% | "
+        f"Avg. Recall {top1_test_summary['metrics']['avg_recall']*100:.2f}% | "
+        f"Avg. F1 {top1_test_summary['metrics']['avg_f1']*100:.2f}%"
+    )
+    print(
+        "Best Top-5 checkpoint test metrics: "
+        f"Top-1 {top5_test_summary['metrics']['top1']*100:.2f}% | "
+        f"Top-5 {top5_test_summary['metrics']['top5']*100:.2f}% | "
+        f"Avg. Prec. {top5_test_summary['metrics']['avg_precision']*100:.2f}% | "
+        f"Avg. Recall {top5_test_summary['metrics']['avg_recall']*100:.2f}% | "
+        f"Avg. F1 {top5_test_summary['metrics']['avg_f1']*100:.2f}%"
     )
 
 if __name__ == "__main__":
