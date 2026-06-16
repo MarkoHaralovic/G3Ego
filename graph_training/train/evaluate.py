@@ -155,7 +155,7 @@ def build_loss_fn(loss_cfg, class_weights, epoch=None, num_epochs=None):
         )
         return loss.mean()
 
-    if name == "cross_entropy":
+    if name in {"cross_entropy", "weighted_cross_entropy"}:
         return ce_loss
     if name in {"focal_loss", "focal_loss_annealed"}:
         return focal_loss

@@ -1,0 +1,34 @@
+{
+  "study": {
+    "study_name": "meccano_next_action_mlp_pruned_f1_hpo",
+    "direction": "maximize",
+    "storage": "sqlite:////home/s3758869/egocentric_video_graph_framework_ar/outputs/meccano/next_action_prediction/optuna/meccano_next_action_mlp_pruned_f1_hpo.db",
+    "load_if_exists": true,
+    "n_trials": 50,
+    "sampler": {"name": "TPESampler", "seed": 53},
+    "pruner": {"name": "MedianPruner", "n_startup_trials": 5, "n_warmup_steps": 3}
+  },
+  "objective": {"metric": "f1", "run_test": false},
+  "fixed_overrides": [{"path": "training.num_epochs", "value": 6}],
+  "search_space": [
+    {"name": "learning_rate", "path": "training.learning_rate", "type": "float", "low": 1e-05, "high": 0.001, "log": true},
+    {"name": "weight_decay", "path": "training.weight_decay", "type": "float", "low": 1e-06, "high": 0.001, "log": true},
+    {"name": "scheduler_factor", "path": "training.scheduler_factor", "type": "float", "low": 0.9, "high": 0.99, "step": 0.01},
+    {"name": "optimizer", "path": "training.optimizer", "type": "categorical", "choices": ["adam", "adamw", "sgd"]},
+    {"name": "batch_size", "path": "data.batch_size", "type": "categorical", "choices": [8, 16, 32]},
+    {"name": "fc_layers_num", "path": "mlp.fc_layers_num", "type": "categorical", "choices": [1, 2, 3]},
+    {"name": "graph_emb_dim", "path": "mlp.projector.graph_emb_dim", "type": "categorical", "choices": [128, 256, 384, 512]},
+    {"name": "graph_pool_interim_feat", "path": "mlp.attention_pooler.graph_pool_interim_feat", "type": "categorical", "choices": [64, 128, 256]},
+    {"name": "final_graph_emb_dim", "path": "mlp.attention_pooler.final_graph_emb_dim", "type": "categorical", "choices": [64, 128, 192, 256]},
+    {"name": "head_dropout", "path": "mlp.head.dropout", "type": "float", "low": 0.0, "high": 0.6, "step": 0.1},
+    {"name": "head_activation", "path": "mlp.head.activation", "type": "categorical", "choices": ["gelu", "relu"]},
+    {"name": "loss_name", "path": "training.loss.name", "type": "categorical", "choices": ["cross_entropy", "weighted_cross_entropy", "focal_loss", "focal_loss_annealed"]},
+    {"name": "ifw", "path": "training.loss.ifw", "type": "categorical", "choices": [false, true]},
+    {"name": "class_weight_alpha", "path": "training.loss.class_weight_alpha", "type": "categorical", "choices": [0.25, 0.5, 0.75, 1.0]},
+    {"name": "focal_gamma", "path": "training.loss.focal_gamma", "type": "float", "low": 1.0, "high": 3.0, "step": 0.5},
+    {"name": "focal_gamma_start", "path": "training.loss.focal_gamma_start", "type": "categorical", "choices": [1.5, 2.0, 3.0]},
+    {"name": "focal_gamma_end", "path": "training.loss.focal_gamma_end", "type": "categorical", "choices": [0.05, 0.1, 0.25, 0.5]},
+    {"name": "sampler_name", "path": "training.sampler.name", "type": "categorical", "choices": ["none", "balanced"]},
+    {"name": "sampler_power", "path": "training.sampler.power", "type": "categorical", "choices": [0.5, 0.75, 1.0]}
+  ]
+}

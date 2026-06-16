@@ -3,7 +3,6 @@ import os
 import pickle
 from collections import defaultdict
 from functools import partial
-
 import torch
 
 def get_split_name(split):
@@ -14,8 +13,6 @@ def get_split_name(split):
         return "Val"
     if "test" in stem:
         return "Test"
-    raise ValueError(f"Unsupported MECCANO split hint: {split}")
-
 
 def resolve_meccano_split_root(metadata_root, split_name):
     split_name = get_split_name(split_name)
@@ -28,10 +25,6 @@ def resolve_meccano_split_root(metadata_root, split_name):
         and os.path.exists(os.path.join(metadata_root, "verbs.json"))
     ):
         return metadata_root
-
-    raise FileNotFoundError(
-        f"Could not find MECCANO metadata for split '{split_name}' under {metadata_root}"
-    )
 
 
 def resolve_meccano_global_root(metadata_root):

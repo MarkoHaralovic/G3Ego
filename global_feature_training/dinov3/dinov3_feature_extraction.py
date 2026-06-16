@@ -10,7 +10,6 @@ from PIL import Image
 from torchvision.transforms import v2
 from transformers import AutoTokenizer, CLIPTextModel, pipeline
 
-
 def make_transform(resize_size: int = 256):
     to_tensor = v2.ToImage()
     resize = v2.Resize((resize_size, resize_size), antialias=True)
@@ -20,7 +19,6 @@ def make_transform(resize_size: int = 256):
         std=(0.229, 0.224, 0.225),
     )
     return v2.Compose([to_tensor, resize, to_float, normalize])
-
 
 def get_visual_features(model, images, pooling):
     # pooling is either average or concat
@@ -77,7 +75,6 @@ def get_clip_text_encoder(model_name, cache_dir=None):
     configuration = text_encoder.config
     return tokenizer, text_encoder, configuration
 
-
 def get_dinov3_extractor(model_name_or_path, cache_dir=None):
     if os.path.exists(model_name_or_path):
         feature_extractor = pipeline(
@@ -93,7 +90,6 @@ def get_dinov3_extractor(model_name_or_path, cache_dir=None):
             },
         )
     return feature_extractor
-
 
 def process_folder(
     vision_backbone,
@@ -254,16 +250,13 @@ def process_folder(
 
 if __name__ == "__main__":
     POOLING = "concat"
-    MODEL_CACHE_DIR = "/home/s3758869/models"
-    clip_model_path = "/home/s3758869/models/clip-vit-base-patch32"
-    dinov3_model_path = "/home/s3758869/models/dinov3-vith16plus-pretrain-lvd1689m"
-    dinov3_model_name_ab = "dinov3h16+"
+    MODEL_CACHE_DIR = None 
+    clip_model_path = ...
+    dinov3_model_path = ...
+    dinov3_model_name_ab = "dinov3s16+"
     INPUT_DATA_FOLDER = (
-        "/home/s3758869/vlm_datasets/AriaEA_vlm_ann_3_10_llava-v1.6-34b-hf"
+        ...
     )
-
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"Using device: {device}")
 
     vision_backbone = get_dinov3_extractor(dinov3_model_path, cache_dir=MODEL_CACHE_DIR)
     tokenizer, text_backbone, _ = get_clip_text_encoder(
@@ -277,5 +270,5 @@ if __name__ == "__main__":
         INPUT_DATA_FOLDER,
         dinov3_model_name_ab,
         POOLING,
-        device,
+        device = "cuda",
     )
