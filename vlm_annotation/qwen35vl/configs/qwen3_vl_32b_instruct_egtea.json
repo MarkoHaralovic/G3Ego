@@ -12,13 +12,17 @@
 
     "image_size": 448,
     "max_new_tokens_action": 160,
-
     "local_window_for_action_size": 1,
-    "frame_stride": 3,
 
-    "frames_input_folder": "/deepstore/datasets/dmb/ComputerVision/information_retrieval/MECCANO/dataset/RGB_frames",
-    "gaze_input_folder": "/deepstore/datasets/dmb/ComputerVision/information_retrieval/MECCANO/dataset/MECCANO_Gaze_data",
-    "output_data_folder": "/projects/eemcs/dmb/ComputerVision/ego_graphs/vlm_datasets/MECCANO_vlm_ann_Qwen3-VL-32B-Instruct-3fps",
+    "videos_root": "/projects/eemcs/dmb/ComputerVision/ego_graphs/vlm_datasets/egtea_gaze/framewise_videos",
+    "output_data_folder": "/projects/eemcs/dmb/ComputerVision/ego_graphs/vlm_datasets/egtea_gaze/vlm_ann_Qwen3-VL-32B-Instruct",
+    "max_frames_per_clip": 32,
+    "overwrite": false,
 
-    "action_recognition_prompt": "action_recognition_prompt"
+    "splits": null,
+    "limit_clips": null,
+    "num_shards": null,
+    "shard_index": null,
+
+    "action_recognition_prompt": "egtea_action_recognition_prompt"
 }

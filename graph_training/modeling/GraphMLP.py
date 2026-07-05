@@ -4,7 +4,6 @@ import torch
 import torch.nn as nn
 from torch.nn import init
 
-
 class AttentionPooling(nn.Module):
     def __init__(self, in_features, out_features, hidden_features=128):
         super().__init__()
@@ -137,14 +136,14 @@ class ActionGraphEmbedding(nn.Module):
         clip_feat = g["clip_feat"]
         clip = torch.as_tensor(clip_feat, device=self.device).float()
 
-        v = self.verb_emb(g["verb_idx"].to(self.device))
+        v = self.verb_emb(g["verb_idx"].to(self.device).long())
         aux_idx = g.get("aux_verb_idx", None)
         if aux_idx is None or aux_idx.numel() == 0:
             aux_tokens = torch.zeros(
                 (0, self.verb_emb.emb.embedding_dim), device=self.device
             )
         else:
-            aux_tokens = self.verb_emb(aux_idx.to(self.device))
+            aux_tokens = self.verb_emb(aux_idx.to(self.device).long())
             if aux_tokens.ndim == 1:
                 aux_tokens = aux_tokens.unsqueeze(0)
         aux_vec = self.aux_pool(aux_tokens) if self.aux_pool else None
@@ -157,7 +156,7 @@ class ActionGraphEmbedding(nn.Module):
                 dtype=obj_feats.dtype,
             )
         else:
-            obj_ids = self.obj_emb(g["obj_indices"].to(self.device))
+            obj_ids = self.obj_emb(g["obj_indices"].to(self.device).long())
             if obj_ids.ndim == 1:
                 obj_ids = obj_ids.unsqueeze(0)
             obj_tokens = torch.cat([obj_feats, obj_ids.to(obj_feats.dtype)], dim=-1)
@@ -184,12 +183,13 @@ class ActionGraphEmbedding(nn.Module):
         rel_emb = self.rel_proj(torch.cat([rel_sum, torch.log1p(rel_sum)], dim=0))
 
         if self.use_triplets:
-            trip = g["triplets"].to(self.device)
+            trip = g["triplets"].long()
             if trip.shape[0] == 0:
                 trip_tokens = torch.zeros(
                     (0, self.verb_emb.emb.embedding_dim), device=self.device
                 )
             else:
+                trip = trip.to(self.device)
                 t = torch.cat(
                     [
                         self.verb_emb(trip[:, 0]),

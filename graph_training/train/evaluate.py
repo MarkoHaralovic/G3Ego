@@ -4,17 +4,27 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from sklearn import metrics
+from tqdm import tqdm
 
 
-def evaluate(net, data_loader, device, num_classes):
+def evaluate(net, data_loader, device, num_classes, progress_desc="Eval"):
     net.eval()
 
     all_preds = []
     all_targets = []
     all_logits = []
+    running_correct = 0
+    running_total = 0
 
     with torch.no_grad():
-        for _, data_dict in enumerate(data_loader):
+        progress = tqdm(
+            data_loader,
+            desc=progress_desc,
+            unit="batch",
+            dynamic_ncols=True,
+            mininterval=1.0,
+        )
+        for data_dict in progress:
             targets = data_dict["activity_label"].to(device)
             graphs = data_dict["full_action_graphs"]
 
@@ -26,6 +36,11 @@ def evaluate(net, data_loader, device, num_classes):
             all_preds.extend(pred.cpu().numpy())
             all_targets.extend(targets.cpu().numpy())
             all_logits.append(logits.cpu().numpy())
+            running_correct += pred.eq(targets).sum().item()
+            running_total += targets.size(0)
+
+            running_acc = running_correct / running_total if running_total else 0.0
+            progress.set_postfix(acc=f"{running_acc * 100:.2f}%")
 
     y_pred_np = np.array(all_preds)
     y_true_np = np.array(all_targets)
@@ -47,6 +62,18 @@ def evaluation_metrics(y_pred, y_true, num_classes, y_score=None):
     confusion_matrix = metrics.confusion_matrix(
         y_true=y_true, y_pred=y_pred, labels=tuple(range(num_classes))
     )
+    per_class_support = confusion_matrix.sum(axis=1)
+    per_class_correct = confusion_matrix.diagonal()
+    present_classes = per_class_support > 0
+    mean_accuracy = (
+        float(
+            np.mean(
+                per_class_correct[present_classes] / per_class_support[present_classes]
+            )
+        )
+        if np.any(present_classes)
+        else 0.0
+    )
 
     top1 = metrics.accuracy_score(y_true=y_true, y_pred=y_pred)
     if y_score is not None:
@@ -63,6 +90,7 @@ def evaluation_metrics(y_pred, y_true, num_classes, y_score=None):
     results = {
         "top1": top1,
         "top5": top5,
+        "mean_accuracy": mean_accuracy,
         "avg_precision": metrics.precision_score(
             y_true=y_true,
             y_pred=y_pred,

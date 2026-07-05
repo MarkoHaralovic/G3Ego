@@ -12,23 +12,31 @@ from datetime import datetime
 import torch
 from dataset.GraphDataset import (
     GraphDatasetMeccano,
-    feature_collate_fn,
 )
 from dataset.meccano_aux import (
     resolve_meccano_global_root,
     resolve_meccano_split_root,
     return_meccano_train_val_test_samples,
 )
-from modeling.GraphMLP import GraphMLP
-from torch.utils.data import DataLoader, WeightedRandomSampler
+from torch.utils.data import WeightedRandomSampler
 from tqdm import tqdm
 from train.evaluate import (
     build_loss_fn,
     compute_class_weights,
-    evaluate,
     store_model,
 )
 from train.train import do_epoch
+from train.utils import (
+    build_graph_mlp,
+    build_optimizer,
+    build_scheduler,
+    evaluate_checkpoint,
+    graph_relation_count,
+    make_loaders,
+    resolve_device,
+    save_json,
+    write_training_outputs,
+)
 
 
 def build_train_sampler(dataset, activity_to_idx, sampler_cfg):
@@ -49,73 +57,15 @@ def build_train_sampler(dataset, activity_to_idx, sampler_cfg):
     return WeightedRandomSampler(weights, num_samples=num_samples, replacement=replacement)
 
 
-def load_best_checkpoint_if_available(model, save_path, metric="acc", device="cpu"):
-    prefix = f"best_model_{metric}_epoch_"
-    candidates = [
-        file_name
-        for file_name in os.listdir(save_path)
-        if file_name.startswith(prefix) and file_name.endswith(".pt")
-    ]
-    if not candidates:
-        return None
-
-    def _epoch_from_name(file_name):
-        epoch_str = file_name[len(prefix) : -3]
-        return int(epoch_str)
-
-    best_file = max(candidates, key=_epoch_from_name)
-    checkpoint_path = os.path.join(save_path, best_file)
-    checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
-    model.load_state_dict(checkpoint["model_state_dict"])
-    return checkpoint_path
-
-
-def evaluate_checkpoint(
-    model,
-    save_path,
-    metric,
-    test_loader,
-    test_dataset,
-    device,
-    fallback_message,
-):
-    checkpoint_path = load_best_checkpoint_if_available(
-        model, save_path, metric=metric, device=device
-    )
-    if checkpoint_path is not None:
-        print(f"Loaded best {metric} checkpoint for test: {checkpoint_path}")
-    else:
-        print(fallback_message)
-
-    test_result, test_preds, test_targets = evaluate(
-        model,
-        test_loader,
-        device,
-        num_classes=len(test_dataset.activity_to_idx),
-    )
-    test_metrics = test_result["eval_metrics"]
-    return {
-        "checkpoint_metric": metric,
-        "checkpoint_path": checkpoint_path,
-        "metrics": {k: float(v) for k, v in test_metrics.items()},
-        "predictions": [test_dataset.idx_to_activity[i] for i in test_preds],
-        "targets": [test_dataset.idx_to_activity[i] for i in test_targets],
-    }
-
-
 def main(args, config):
     mlp_cfg = config["mlp"]
-    action_graph_cfg = mlp_cfg["action_graph_embedder"]
     projector_cfg = mlp_cfg["projector"]
     attention_pool_cfg = mlp_cfg["attention_pooler"]
-    head_cfg = mlp_cfg.get("head", {})
 
     experiment_name = config["experiment_name"]
     print(f"Running experiment: {experiment_name}")
 
-    device = config["device"]
-    if device == "cuda" and not torch.cuda.is_available():
-        device = "cpu"
+    device = resolve_device(config["device"])
 
     num_epochs = config["training"]["num_epochs"]
     optimizer_name = config["training"]["optimizer"]
@@ -124,22 +74,11 @@ def main(args, config):
     scheduler_factor = config["training"]["scheduler_factor"]
 
     batch_size = config["data"]["batch_size"]
-    num_workers = config["data"]["num_workers"]
-    pin_memory = config["data"]["pin_memory"]
 
     fc_layers_num = mlp_cfg["fc_layers_num"]
     num_graphs = mlp_cfg["num_graphs"]
 
-    use_pool = mlp_cfg["use_pool"]
-    use_proj = mlp_cfg["use_proj"]
-
     graph_emb_dim = projector_cfg["graph_emb_dim"]
-    layer_norm = projector_cfg.get("layer_norm", True)
-    gelu = projector_cfg.get("gelu", True)
-    head_dropout = head_cfg.get("dropout", 0.5)
-    head_activation = head_cfg.get("activation", "gelu")
-
-    graph_pool_interim_feat = attention_pool_cfg["graph_pool_interim_feat"]
     final_graph_emb_dim = attention_pool_cfg["final_graph_emb_dim"]
 
     data_path = config["data"]["input_path"]
@@ -148,6 +87,13 @@ def main(args, config):
     val_actions_csv = config["data"]["val_actions_csv"]
     test_actions_csv = config["data"]["test_actions_csv"]
     easg_cache_path = config["data"].get("easg_cache_path")
+    feature_mode = config["data"].get("feature_mode")
+    concat_depth_features = config["data"].get("concat_depth_features", False)
+    depth_feature_root = config["data"].get("depth_feature_root")
+    depth_feature_dim = config["data"].get("depth_feature_dim", 1536)
+    rgb_feature_filename = config["data"].get(
+        "rgb_feature_filename", "frame_features_model_dinov3h16+.h5"
+    )
 
     (
         train_samples,
@@ -191,18 +137,7 @@ def main(args, config):
         attrs = json.load(f)
 
     graph_type = config["data"].get("graph_type", "full")
-
-    if graph_type == "pruned":
-        pruned_rels = {
-            rel_name: rel_idx
-            for rel_name, rel_idx in rels.items()
-            if rel_name not in {"aux_direct_object", "aux_verb"}
-        }
-        if "gazed_at" not in pruned_rels:
-            pruned_rels["gazed_at"] = max(pruned_rels.values(), default=-1) + 1
-        num_rels = max(pruned_rels.values(), default=-1) + 1
-    else:
-        num_rels = len(rels)
+    num_rels = graph_relation_count(rels, graph_type, drop_aux=True)
 
     print(f"activity_to_idx : {activity_to_idx}")
     print(f"len(train_samples) : {len(train_samples)}")
@@ -211,6 +146,7 @@ def main(args, config):
     print(f"Graph type : {graph_type}")
     print(f"Vocabulary root : {vocab_root}")
     print(f"EASG cache path : {easg_cache_path}")
+    print(f"RGB feature filename : {rgb_feature_filename}")
     print(f"MECCANO split stats : {json.dumps(split_stats, indent=2)}")
 
     train_dataset = GraphDatasetMeccano(
@@ -220,6 +156,11 @@ def main(args, config):
         activity_to_idx,
         graph_type,
         easg_cache_path=easg_cache_path,
+        concat_depth_features=concat_depth_features,
+        feature_mode=feature_mode,
+        depth_feature_root=depth_feature_root,
+        depth_feature_dim=depth_feature_dim,
+        rgb_feature_filename=rgb_feature_filename,
     )
     validation_dataset = GraphDatasetMeccano(
         metadata_root,
@@ -228,6 +169,11 @@ def main(args, config):
         activity_to_idx,
         graph_type,
         easg_cache_path=easg_cache_path,
+        concat_depth_features=concat_depth_features,
+        feature_mode=feature_mode,
+        depth_feature_root=depth_feature_root,
+        depth_feature_dim=depth_feature_dim,
+        rgb_feature_filename=rgb_feature_filename,
     )
     test_dataset = GraphDatasetMeccano(
         metadata_root,
@@ -236,6 +182,11 @@ def main(args, config):
         activity_to_idx,
         graph_type,
         easg_cache_path=easg_cache_path,
+        concat_depth_features=concat_depth_features,
+        feature_mode=feature_mode,
+        depth_feature_root=depth_feature_root,
+        depth_feature_dim=depth_feature_dim,
+        rgb_feature_filename=rgb_feature_filename,
     )
 
     assert train_dataset.activity_to_idx == validation_dataset.activity_to_idx
@@ -244,52 +195,14 @@ def main(args, config):
 
     sampler_cfg = config["training"].get("sampler", {"name": "none"})
     train_sampler = build_train_sampler(train_dataset, activity_to_idx, sampler_cfg)
-    train_loader = DataLoader(
-        train_dataset,
-        batch_size=batch_size,
-        shuffle=train_sampler is None,
-        sampler=train_sampler,
-        num_workers=num_workers,
-        pin_memory=pin_memory,
-        collate_fn=feature_collate_fn,
+    train_loader, val_loader, test_loader = make_loaders(
+        (train_dataset, validation_dataset, test_dataset),
+        config["data"],
+        train_sampler=train_sampler,
+        eval_num_workers=0,
     )
-    val_loader = DataLoader(
-        validation_dataset,
-        batch_size=batch_size,
-        shuffle=False,
-        num_workers=0,
-        pin_memory=False,
-        collate_fn=feature_collate_fn,
-    )
-    test_loader = DataLoader(
-        test_dataset,
-        batch_size=batch_size,
-        shuffle=False,
-        num_workers=0,
-        pin_memory=False,
-        collate_fn=feature_collate_fn,
-    )
-
-    model = GraphMLP(
-        num_graphs=num_graphs,
-        num_verbs=len(verbs),
-        num_objects=len(objs),
-        num_rels=num_rels,
-        num_attrs=len(attrs),
-        n_classes=len(cls_mapping),
-        fc_layers_num=fc_layers_num,
-        graph_emb_dim=graph_emb_dim,
-        final_graph_emb_dim=final_graph_emb_dim,
-        graph_pool_interim_feat=graph_pool_interim_feat,
-        layer_norm=layer_norm,
-        gelu=gelu,
-        head_dropout=head_dropout,
-        head_activation=head_activation,
-        device=device,
-        action_graph_kwargs=action_graph_cfg,
-        use_pool=use_pool,
-        use_proj=use_proj,
-    ).to(device)
+    vocab = {"verbs": verbs, "objects": objs, "relationships": rels, "attributes": attrs}
+    model = build_graph_mlp(config, vocab, len(cls_mapping), num_rels, device)
 
     class_weights = None
     if config["training"]["loss"]["ifw"]:
@@ -297,27 +210,8 @@ def main(args, config):
         print(class_weights)
     loss_func = build_loss_fn(config["training"]["loss"], class_weights)
 
-    if optimizer_name == "adam":
-        opt = torch.optim.Adam(
-            params=model.parameters(),
-            lr=learning_rate,
-            weight_decay=weight_decay,
-        )
-    elif optimizer_name == "sgd":
-        opt = torch.optim.SGD(
-            params=model.parameters(),
-            lr=learning_rate,
-            momentum=0.9,
-            weight_decay=weight_decay,
-        )
-    else:
-        raise ValueError(f"Unsupported optimizer: {optimizer_name}")
-
-    scheduler = None
-    if scheduler_factor != 1.0:
-        scheduler = torch.optim.lr_scheduler.MultiplicativeLR(
-            opt, lr_lambda=lambda epoch: scheduler_factor
-        )
+    opt = build_optimizer(model, config["training"])
+    scheduler = build_scheduler(opt, config["training"])
 
     save_path = os.path.join(
         config["output"]["base_path"],
@@ -352,11 +246,8 @@ def main(args, config):
         "split_stats": split_stats,
     }
 
-    with open(os.path.join(save_path, "experiment_config.json"), "w") as f:
-        json.dump(experiment_config, f, indent=2)
-
-    with open(os.path.join(save_path, "class_mapping.json"), "w") as f:
-        json.dump(cls_mapping, f, indent=2)
+    save_json(os.path.join(save_path, "experiment_config.json"), experiment_config)
+    save_json(os.path.join(save_path, "class_mapping.json"), cls_mapping)
 
     model.train()
     epoch_preds = {k: {} for k in range(num_epochs)}
@@ -430,27 +321,7 @@ def main(args, config):
 
         print(f"Epoch {epoch+1} completed")
 
-    with open(os.path.join(save_path, "training_results.json"), "w") as f:
-        json_results = {}
-        for ep, res in results.items():
-            json_results[str(ep)] = {
-                "train": {
-                    k: float(v) for k, v in res["train"]["eval_metrics"].items()
-                },
-                "val": {
-                    k: float(v) for k, v in res["val"]["eval_metrics"].items()
-                },
-            }
-        json.dump(json_results, f, indent=2)
-
-    with open(os.path.join(save_path, "per_epoch_predictions.json"), "w") as f:
-        json_results = {}
-        for ep, res in epoch_preds.items():
-            json_results[str(ep)] = {
-                "predictions": res["predictions"],
-                "targets": res["targets"],
-            }
-        json.dump(json_results, f, indent=2)
+    write_training_outputs(save_path, results, epoch_preds)
 
     top1_test_summary = evaluate_checkpoint(
         model,
@@ -459,7 +330,6 @@ def main(args, config):
         test_loader,
         test_dataset,
         device,
-        "No best top1 checkpoint found; using final epoch model for top1 test.",
     )
     top5_test_summary = evaluate_checkpoint(
         model,
@@ -468,17 +338,11 @@ def main(args, config):
         test_loader,
         test_dataset,
         device,
-        "No best top5 checkpoint found; using current model for top5 test.",
     )
 
-    with open(os.path.join(save_path, "final_test_results_top1.json"), "w") as f:
-        json.dump(top1_test_summary, f, indent=2)
-
-    with open(os.path.join(save_path, "final_test_results_top5.json"), "w") as f:
-        json.dump(top5_test_summary, f, indent=2)
-
-    with open(os.path.join(save_path, "final_test_results.json"), "w") as f:
-        json.dump(top1_test_summary, f, indent=2)
+    save_json(os.path.join(save_path, "final_test_results_top1.json"), top1_test_summary)
+    save_json(os.path.join(save_path, "final_test_results_top5.json"), top5_test_summary)
+    save_json(os.path.join(save_path, "final_test_results.json"), top1_test_summary)
 
     print(f"Best validation Top-1 accuracy: {best_epoch_result['top1']*100:.2f}%")
     print(f"Best validation Top-5 accuracy: {best_epoch_result['top5']*100:.2f}%")

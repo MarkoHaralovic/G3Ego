@@ -1,8 +1,0 @@
-{
-  "model_type": "lstm",
-  "selected_config_path": "/home/s3758869/egocentric_video_graph_framework_ar/outputs/meccano/action_recognition/selected_top1_20/lstm_pruned/meccano_ar_lstm_pruned_optuna_trial_26_acc_finetune_20ep/dino_model_fc_layer_1_num_epoch_20_graph_emb_dim_512_lstm_hidden_128_final_graph_emb_dim_192_20260427_101858/experiment_config.json",
-  "experiment_name_prefix": "meccano_ar_lstm_pruned_best_top1_loss_ablation",
-  "objective_metric": "top5",
-  "run_test": true,
-  "output_base_path": "/home/s3758869/egocentric_video_graph_framework_ar/outputs/meccano/action_recognition/loss_ablation/lstm_pruned"
-}

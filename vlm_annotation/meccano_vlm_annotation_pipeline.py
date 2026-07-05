@@ -43,16 +43,23 @@ def get_gazes_for_frames(gaze_input_folder : Path, mode : str, clip_names : str)
         gaze_data[clip_name] = gazes
     return gaze_data
 
-def get_frames(frames_input_folder : Path, mode : str):
+def get_frames(frames_input_folder : Path, mode : str, frame_stride: int = 1):
     frames = {}
     for clip_name in os.listdir(os.path.join(frames_input_folder, mode)):
         frames[clip_name] = {}
         clip_folder = os.path.join(frames_input_folder, mode, clip_name)
         if os.path.exists(clip_folder):
-            for frame_file in sorted(os.listdir(clip_folder)):
-                if frame_file.endswith(".jpg") or frame_file.endswith(".png"):
-                    frame_index = Path(str(frame_file)).stem 
-                    frames[clip_name][frame_index] = os.path.join(clip_folder, frame_file)
+            frame_files = sorted(
+                [
+                    frame_file
+                    for frame_file in os.listdir(clip_folder)
+                    if frame_file.endswith(".jpg") or frame_file.endswith(".png")
+                ],
+                key=lambda f: int(Path(str(f)).stem) if Path(str(f)).stem.isdigit() else str(f),
+            )
+            for frame_file in frame_files[::frame_stride]:
+                frame_index = Path(str(frame_file)).stem
+                frames[clip_name][frame_index] = os.path.join(clip_folder, frame_file)
     return frames
 
 def action_annotate(cfg, vlm, model, processor, image_paths):
@@ -61,9 +68,17 @@ def action_annotate(cfg, vlm, model, processor, image_paths):
     actions = []
     prev, after = int(local_window // 2), int(local_window // 2)
     for i in tqdm.tqdm(range(len(image_paths)), desc="Action annotating clip", total=len(image_paths)):
-        images_for_act = [cv2.imread(image_paths[j]) for j in range(max(0, i - prev), min(len(image_paths), i + after + 1))]
+        images_for_act = [
+            cv2.cvtColor(cv2.imread(image_paths[j]), cv2.COLOR_BGR2RGB)
+            for j in range(max(0, i - prev), min(len(image_paths), i + after + 1))
+        ]
         result = vlm.recognize_action_single_frame(
-            model, processor, images_for_act[0], cfg["action_recognition_prompt"], image_size
+            model,
+            processor,
+            images_for_act[0],
+            cfg["action_recognition_prompt"],
+            image_size,
+            max_new_tokens=cfg.get("max_new_tokens_action", 100),
         )
         action = vlm.parse_output(result)
         actions.append(action)
@@ -130,7 +145,7 @@ def annotate_dataset(cfg, vlm, model, processor):
     modes = ["Train", "Val", "Test"]
 
     for mode in modes:
-        frames = get_frames(cfg["frames_input_folder"], mode)
+        frames = get_frames(cfg["frames_input_folder"], mode, cfg.get("frame_stride", 1))
         gazes = get_gazes_for_frames(cfg["gaze_input_folder"], mode, list(frames.keys()))
         
         for clip_name in frames.keys():
@@ -181,7 +196,7 @@ def annotate_dataset_mp(cfg, vlm, num_gpus):
     total_clips = 0
 
     for mode in ["Train", "Val", "Test"]:
-        frames = get_frames(cfg["frames_input_folder"], mode)
+        frames = get_frames(cfg["frames_input_folder"], mode, cfg.get("frame_stride", 1))
         gazes = get_gazes_for_frames(cfg["gaze_input_folder"], mode, list(frames.keys()))
         for clip_name, clip_frames in frames.items():
             output_clip_path = os.path.join(output_path, mode, clip_name)

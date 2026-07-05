@@ -19,17 +19,15 @@ def make_transform(resize_size: int = 256):
     )
     return v2.Compose([to_tensor, resize, to_float, normalize])
 
-
 def get_visual_features(model, images, pooling):
     # pooling is either average or concat
     pil_images = [
         Image.fromarray(img) if isinstance(img, np.ndarray) else img for img in images
     ]
-
+    results = model(pil_images, batch_size=len(pil_images))
     feats = []
-    for img in pil_images:
-        result = model(img)
-        if isinstance(result, list) and len(result) > 0:
+    for result in results:
+        if isinstance(result, list):
             feat = torch.tensor(result[0])
         else:
             feat = torch.tensor(result)
@@ -68,12 +66,12 @@ def get_dinov3_extractor(model_name_or_path, cache_dir=None, device="cpu"):
         )
     return feature_extractor
 
-
 def process_folder(
     vision_backbone,
     images_folder_path,
     annotation_folder_path,
     model_name,
+    batch_size=128
 ):
     """Extract DINOv2 features for each clip and save h5 files into the
     annotation clip folder alongside the existing CSV annotations.
@@ -82,7 +80,7 @@ def process_folder(
         c for c in os.listdir(annotation_folder_path)
         if os.path.isdir(os.path.join(annotation_folder_path, c))
     ]
-
+    
     for clip in tqdm.tqdm(clips, desc=f"Extracting features from {annotation_folder_path}"):
         frames_folder = os.path.join(images_folder_path, clip)
         annotation_csv = os.path.join(
@@ -122,20 +120,40 @@ def process_folder(
         frame_visual_feats = []
         frame_gaze_labels = []
 
-        for frame_id, fname in enumerate(tqdm.tqdm(image_filenames, desc=clip, leave=False)):
-            img_bgr = cv2.imread(os.path.join(frames_folder, fname))
-            image = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+        for start in tqdm.tqdm(
+            range(0, len(image_filenames), batch_size),
+            desc=clip,
+            leave=False,
+        ):
+            batch_fnames = image_filenames[start:start + batch_size]
+            batch_images = []
 
-            frame_visual_feat = get_visual_features(vision_backbone, [image], "average")
-            if isinstance(frame_visual_feat, torch.Tensor):
-                frame_visual_feat = frame_visual_feat.detach().cpu().numpy()
+            for fname in batch_fnames:
+                img_path = os.path.join(frames_folder, fname)
+                img_bgr = cv2.imread(img_path)
+                image = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+                batch_images.append(image)
 
-            gaze = gaze_lookup.get(fname, (float("nan"), float("nan")))
+            if len(batch_images) == 0:
+                continue
 
-            frame_ids.append(frame_id)
-            frame_names.append(fname)
-            frame_visual_feats.append(frame_visual_feat)
-            frame_gaze_labels.append(gaze)
+            batch_feats = get_visual_features(
+                vision_backbone,
+                batch_images,
+                pooling="none",
+            )
+
+            if isinstance(batch_feats, torch.Tensor):
+                batch_feats = batch_feats.detach().cpu().numpy()
+
+            for i, fname in enumerate(batch_fnames):
+                frame_id = start + i
+                gaze = gaze_lookup.get(fname, (float("nan"), float("nan")))
+
+                frame_ids.append(frame_id)
+                frame_names.append(fname)
+                frame_visual_feats.append(batch_feats[i])
+                frame_gaze_labels.append(gaze)
 
         frame_visual_feats_arr = np.stack(frame_visual_feats, axis=0)  # (N, D)
         frame_ids_arr = np.array(frame_ids, dtype="int32")
@@ -152,12 +170,12 @@ def process_folder(
 
 if __name__ == "__main__":
     MODEL_CACHE_DIR = None
-    dinov3_model_path = "facebook/dinov3-vith16plus-pretrain-lvd1689m"
-    dinov3_model_name_ab = "dinov3h16+"
+    dinov3_model_path = "facebook/dinov3-vitb16-pretrain-lvd1689m"
+    dinov3_model_name_ab = "dinov3_vits16"
 
     SPLITS = ("Train", "Val", "Test")
-    ANNOTATION_BASE = "/home/s3758869/vlm_datasets/MECCANO_vlm_ann_Qwen3-VL-32B-Instruct-3fps"
-    IMAGES_BASE = "/home/s3758869/egocentric_video_graph_framework_ar/MECCANO/dataset/RGB_frames"
+    ANNOTATION_BASE = "/projects/eemcs/dmb/ComputerVision/ego_graphs/vlm_datasets/MECCANO_vlm_ann_Qwen3-VL-32B-Instruct-3fps/"
+    IMAGES_BASE = "/deepstore/datasets/dmb/ComputerVision/information_retrieval/MECCANO/dataset/RGB_frames"
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Using device: {device}")

@@ -1,8 +1,0 @@
-{
-  "model_type": "mlp",
-  "selected_config_path": "/home/s3758869/egocentric_video_graph_framework_ar/outputs/meccano/action_recognition/selected_top1_20/mlp_pruned/meccano_ar_mlp_pruned_optuna_trial_1_acc_finetune_20ep/dino_model_fc_layer_1_num_epoch_20_graph_emb_dim_256_final_graph_emb_dim_64_20260427_101855/experiment_config.json",
-  "experiment_name_prefix": "meccano_ar_mlp_pruned_best_top1_loss_ablation",
-  "objective_metric": "top5",
-  "run_test": true,
-  "output_base_path": "/home/s3758869/egocentric_video_graph_framework_ar/outputs/meccano/action_recognition/loss_ablation/mlp_pruned"
-}

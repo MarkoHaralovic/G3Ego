@@ -1,12 +1,22 @@
 import json
 import os
 import re
+import csv
 from ast import literal_eval
 
-import pandas as pd
 import spacy
-import tqdm
 from spacy.symbols import VERB, nsubj
+
+try:
+    import tqdm
+except ModuleNotFoundError:
+    tqdm = None
+
+
+def progress(iterable, **kwargs):
+    if tqdm is None:
+        return iterable
+    return tqdm.tqdm(iterable, **kwargs)
 
 nlp = spacy.load("en_core_web_sm")
 
@@ -30,11 +40,87 @@ COLOR_WORDS = frozenset({
     "brown", "orange", "purple", "pink", "silver", "gold",
 })
 
+QUANTITY_PREFIXES = frozenset({
+    "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
+    "ten", "single", "double", "triple", "multiple", "several",
+})
+
+BRAND_PREFIXES = frozenset({
+    "barilla", "dixie", "heinz", "honey", "jif", "morton", "nescafe",
+    "nescafé", "philadelphia", "progresso", "sargento", "vigo", "vlasic",
+    "vego", "yago",
+})
+
+DESCRIPTOR_PREFIXES = frozenset({
+    "100", "%", "adjacent", "bella", "beta", "brand", "cartoon", "colored",
+    "crispy", "covered", "delta", "extra", "folded", "framed", "metal",
+    "metallic", "paper", "peta", "plastic", "pure", "stacked", "steel",
+    "striped", "stuffed", "textured", "themed", "thin", "ultra", "wooden",
+    "wrapped",
+})
+
+OBJECT_ATTRIBUTE_PREFIXES = QUANTITY_PREFIXES | BRAND_PREFIXES | DESCRIPTOR_PREFIXES
+
+IRREGULAR_SINGULARS = {
+    "leaves": "leaf",
+}
+
+UNCOUNTABLE_OBJECTS = frozenset({
+    "asparagus", "cheese", "clothes", "glass", "lettuce", "mayonnaise",
+    "pasta", "rice", "scissors",
+})
+
+PSEUDO_AUX_VERBS = frozenset({"access"})
+
+
+def is_pseudo_aux_verb(tok):
+    """Handle infinitive verbs spaCy sometimes tags as nouns.
+
+    In EGTEA kitchen annotations, "to access stacked plates" is often parsed
+    as to/ADP + access/NOUN + plates/dobj. Treat only this narrow shape as an
+    auxiliary/action verb so "access" does not become an object.
+    """
+    if tok.text.lower() not in PSEUDO_AUX_VERBS and tok.lemma_.lower() not in PSEUDO_AUX_VERBS:
+        return False
+    if tok.i == 0 or tok.nbor(-1).text.lower() != "to":
+        return False
+    return True
+
+
+def follows_pseudo_aux_verb(tok):
+    """Return True when *tok* is in the object span after "to access"."""
+    doc = tok.doc
+    for idx in range(tok.i - 1, -1, -1):
+        prev = doc[idx]
+        if prev.text in (",", ".", ";", ":") or prev.pos_ == "PUNCT":
+            return False
+        if is_pseudo_aux_verb(prev):
+            return True
+        if prev.pos_ == "VERB" and prev.tag_ not in ("VBN", "VBD"):
+            return False
+    return False
+
+
+def pseudo_aux_object_tokens(tok):
+    """Collect noun/proper-noun object tokens following a pseudo auxiliary."""
+    tokens = []
+    for cand in tok.doc[tok.i + 1 :]:
+        if cand.text in (",", ".", ";", ":") or cand.pos_ == "PUNCT":
+            break
+        if cand.pos_ in ("NOUN", "PROPN") and follows_pseudo_aux_verb(cand):
+            if cand.dep_ in ("dobj", "obj", "pobj", "conj"):
+                tokens.append(cand)
+    return tokens
+
 
 def get_aux_verbs(t, main_verb_lemma):
     doc = nlp(t)
     aux = []
     for tok in doc:
+        if is_pseudo_aux_verb(tok):
+            if tok.lemma_ != main_verb_lemma:
+                aux.append(tok.lemma_.lower())
+            continue
         if tok.pos_ != "VERB":
             continue
         if tok.lemma_ == main_verb_lemma:
@@ -65,6 +151,10 @@ def get_preposition_object_pairs(t):
     doc = nlp(t)
     preposition_object_pairs = []
     for possible_object in doc:
+        if is_pseudo_aux_verb(possible_object):
+            continue
+        if follows_pseudo_aux_verb(possible_object):
+            continue
         if possible_object.dep_ == "pobj" and possible_object.head.dep_ == "prep":
             pobj_str = noun_phrase(possible_object)
             prep_str = possible_object.head.lemma_
@@ -95,12 +185,15 @@ def check_verb(token):
 
 
 def check_dobj(token):
-    if token.dep_ == "dobj":
+    if token.dep_ == "dobj" and not follows_pseudo_aux_verb(token):
         return token
     return None
 
 
 def check_if_obj(token):
+    if is_pseudo_aux_verb(token):
+        return None
+
     if token.pos_ in ("NOUN", "PROPN"):
         # direct/indirect objects
         if token.dep_ in ("dobj", "obj", "iobj", "dative"):
@@ -186,26 +279,54 @@ def norm_obj(s: str) -> str:
     return " ".join(s.lower().split())
 
 
+def singularize_object_phrase(base: str) -> str:
+    tokens = [tok for tok in str(base).strip().lower().split() if tok]
+    if not tokens:
+        return ""
+    head = tokens[-1]
+    if head in UNCOUNTABLE_OBJECTS:
+        return " ".join(tokens)
+    if head in IRREGULAR_SINGULARS:
+        tokens[-1] = IRREGULAR_SINGULARS[head]
+    elif head.endswith("ies") and len(head) > 3:
+        tokens[-1] = head[:-3] + "y"
+    elif head.endswith("ves") and len(head) > 3:
+        tokens[-1] = head[:-3] + "f"
+    elif head.endswith("oes") and len(head) > 3:
+        tokens[-1] = head[:-2]
+    elif head.endswith("s") and not head.endswith(("ss", "us", "is")) and len(head) > 3:
+        tokens[-1] = head[:-1]
+    return " ".join(tokens)
+
+
 def get_aux_verb_object_map(t, aux_verb_lemma, all_objects):
     doc = nlp(t)
     all_norm = {norm_obj(o): o for o in all_objects}
 
     found = []
     for v in doc:
-        if v.pos_ != "VERB":
+        if v.pos_ != "VERB" and not is_pseudo_aux_verb(v):
             continue
         if v.lemma_ != aux_verb_lemma:
             continue
 
         candidate_phrases = []
 
-        for ch in v.children:
-            if ch.dep_ in ("dobj", "obj"):
+        child_tokens = pseudo_aux_object_tokens(v) if is_pseudo_aux_verb(v) else list(v.children)
+
+        for ch in child_tokens:
+            if ch.dep_ in ("dobj", "obj", "pobj", "conj"):
                 # Use object_record for consistency with the left-scan
                 # approach (captures coordinated colours, etc.)
-                recs = object_record(ch)
-                for rec in recs:
-                    candidate_phrases.append(rec["raw"])
+                object_tokens = [ch] + [
+                    conj
+                    for conj in ch.conjuncts
+                    if conj.pos_ in ("NOUN", "PROPN") and conj.dep_ == "conj"
+                ]
+                for object_token in object_tokens:
+                    recs = object_record(object_token)
+                    for rec in recs:
+                        candidate_phrases.append(rec["raw"])
 
             if ch.dep_ == "prep":
                 # Skip prep-pobj when a comma sits between the verb and
@@ -346,6 +467,7 @@ def object_record(token):
         return t.text.lower() in COLOR_WORDS
 
     # --- left-scan: walk backwards from the head noun ---
+    pseudo_aux_context = is_pseudo_aux_verb(token.head) or follows_pseudo_aux_verb(token)
     idx = token.i - 1
     while idx >= 0:
         t = doc[idx]
@@ -358,6 +480,16 @@ def object_record(token):
             attr_mods.insert(0, t)
             idx -= 1
             continue
+        if t.text.lower() in OBJECT_ATTRIBUTE_PREFIXES:
+            attr_mods.insert(0, t)
+            idx -= 1
+            continue
+        if t.i < token.i - 1 and t.text.lower().endswith("ed"):
+            attr_mods.insert(0, t)
+            idx -= 1
+            continue
+        if is_pseudo_aux_verb(t):
+            break
         # stop at real verbs (not past-participle modifiers)
         if t.pos_ == "VERB" and t.tag_ not in ("VBN", "VBD"):
             break
@@ -374,16 +506,21 @@ def object_record(token):
         # --- classify the modifier ---
         if t.tag_ in ("VBN", "VBD"):
             # past-participle descriptors → base  (angled, perforated)
-            base_mods.insert(0, t)
+            if pseudo_aux_context and t.dep_ == "amod":
+                attr_mods.insert(0, t)
+            else:
+                attr_mods.insert(0, t)
         elif t.pos_ == "NUM":
-            base_mods.insert(0, t)
-        elif t.pos_ in ("NOUN", "PROPN"):
+            attr_mods.insert(0, t)
+        elif t.pos_ == "PROPN":
+            attr_mods.insert(0, t)
+        elif t.pos_ == "NOUN":
             base_mods.insert(0, t)
         elif t.pos_ == "ADJ":
             if t.text.lower().endswith("ed"):
                 # adjective that looks like a past participle
                 # (spaCy sometimes tags "perforated" as JJ)
-                base_mods.insert(0, t)
+                attr_mods.insert(0, t)
             else:
                 attr_mods.insert(0, t)
         else:
@@ -420,7 +557,7 @@ def object_record(token):
             return t.lemma_.lower()
         return t.text.lower()
 
-    base_phrase = " ".join([base_token_str(t) for t in base_tokens])
+    base_phrase = singularize_object_phrase(" ".join([base_token_str(t) for t in base_tokens]))
 
     raw_tokens = sorted(set(attr_mods + base_mods + [token]), key=lambda x: x.i)
     raw_phrase = " ".join([t.text for t in raw_tokens]).lower()
@@ -458,12 +595,16 @@ def parse_annotate_folder(input_path):
     verbs = {}
     attributes_dict = {}
 
-    for clip in tqdm.tqdm(clips, desc=f"Parsing annotations from {input_path}"):
+    for clip in progress(clips, desc=f"Parsing annotations from {input_path}"):
         rows = []
         with open(os.path.join(input_path, clip, "actions.txt"), "r") as f:
             actions_list = [line.strip() for line in f.readlines()]
 
-        for i, action in tqdm.tqdm(enumerate(actions_list), total=len(actions_list), desc=f"Parsing actions in clip {clip}"):
+        for i, action in progress(
+            enumerate(actions_list),
+            total=len(actions_list),
+            desc=f"Parsing actions in clip {clip}",
+        ):
             result = parse_annotate_action(action)
             if result[0] is not None:
                 (
@@ -524,10 +665,15 @@ def parse_annotate_folder(input_path):
                 )
 
         if rows:
-            clip_dataframe = pd.DataFrame(rows)
-            clip_dataframe.to_csv(
-                os.path.join(input_path, clip, "parse_annotation.csv"), index=False
-            )
+            with open(
+                os.path.join(input_path, clip, "parse_annotation.csv"),
+                "w",
+                newline="",
+                encoding="utf-8",
+            ) as f:
+                writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+                writer.writeheader()
+                writer.writerows(rows)
 
     if objects:
         objects_enum = {obj: idx for idx, obj in enumerate(sorted(objects.keys()))}
