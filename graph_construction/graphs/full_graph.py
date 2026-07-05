@@ -17,6 +17,20 @@ def to_singular(word: str) -> str:
     return word.lower()
 
 
+def normalize_object_name(name: str) -> str:
+    return " ".join(str(name).strip().lower().split())
+
+
+def resolve_object_name(name: str, objects_atr_map: Dict) -> str:
+    if name in objects_atr_map:
+        return name
+
+    normalized_name = normalize_object_name(name)
+    normalized_lookup = {
+        normalize_object_name(candidate): candidate for candidate in objects_atr_map
+    }
+    return normalized_lookup.get(normalized_name)
+
 class FullActionGraph(BaseGraph):
     def __init__(self, verbs: Dict, objs: Dict, rels: Dict, attrs: Dict):
         node_types = ["camera_wearer", "verb", "object", "aux_verb"]
@@ -39,8 +53,17 @@ class FullActionGraph(BaseGraph):
         
     ):
         self.object_dim = object_dim
-        if direct_object and direct_object not in objects_atr_map:
-            print(f"direct_object '{direct_object}' not found in objects_atr_map. Available: {list(objects_atr_map.keys())}")
+        original_direct_object = direct_object
+        direct_object = (
+            resolve_object_name(direct_object, objects_atr_map)
+            if direct_object
+            else None
+        )
+        if original_direct_object and direct_object is None:
+            print(
+                f"direct_object '{original_direct_object}' not found in "
+                f"objects_atr_map. Available: {list(objects_atr_map.keys())}"
+            )
             direct_object = None
 
         aux_verb_idxs = (
@@ -55,47 +78,38 @@ class FullActionGraph(BaseGraph):
                 obj_idx = self.objs[to_singular(obj_info["base_object"])]
                 obj_data.append((obj_idx, obj_name, obj_info["attributes"]))
 
-        rels_vecs = torch.zeros(len(self.objs), len(self.rels))
+        obj_row_map = {
+            obj_name: row_idx for row_idx, (_, obj_name, _) in enumerate(obj_data)
+        }
+
+        rels_vecs = torch.zeros(len(obj_data), len(self.rels))
         for _item in rels_dict:
             obj_name, rel = list(_item.items())[0]
+            resolved_obj_name = resolve_object_name(obj_name, objects_atr_map)
             if (
                 rel not in self.rels
-                or to_singular(objects_atr_map.get(obj_name, {}).get("base_object", ""))
-                not in self.objs
+                or resolved_obj_name not in obj_row_map
             ):
                 continue
-            rels_vecs[
-                self.objs[to_singular(objects_atr_map[obj_name]["base_object"])],
-                self.rels[rel],
-            ] = 1.0
+            rels_vecs[obj_row_map[resolved_obj_name], self.rels[rel]] = 1.0
         node_id_counter = 0
 
-        if direct_object is not None:
-            direct_object_id = self.objs[
-                to_singular(objects_atr_map[direct_object]["base_object"])
-            ]
-        else:
-            direct_object_id = None
-
-        aux_direct_objects = (
-            [v[0] for v in aux_direct_objects_map.values() if v and len(v) > 0]
-            if aux_direct_objects_map
-            else None
-        )
-
-        aux_direct_object_ids = (
-            [
-                self.objs[
-                    to_singular(objects_atr_map[aux_direct_object]["base_object"])
-                ]
-                for aux_direct_object in aux_direct_objects
-            ]
-            if aux_direct_objects is not None
-            else None
-        )
-        if aux_direct_object_ids is not None:
-            for aux_id in aux_direct_object_ids:
-                rels_vecs[aux_id, self.rels["aux_direct_object"]] = 1.0
+        aux_obj_to_verbs = {}
+        if aux_direct_objects_map:
+            for aux_verb, aux_objects in aux_direct_objects_map.items():
+                if aux_verb not in self.verbs:
+                    continue
+                for aux_object in aux_objects:
+                    resolved_aux_object = resolve_object_name(
+                        aux_object, objects_atr_map
+                    )
+                    if resolved_aux_object not in obj_row_map:
+                        continue
+                    aux_obj_to_verbs.setdefault(resolved_aux_object, []).append(aux_verb)
+                    if "aux_direct_object" in self.rels:
+                        rels_vecs[
+                            obj_row_map[resolved_aux_object], self.rels["aux_direct_object"]
+                        ] = 1.0
 
         # CW node
         cw_id = node_id_counter
@@ -136,9 +150,9 @@ class FullActionGraph(BaseGraph):
                 aux_verb_node_map[aux_verb] = aux_verb_id
 
         # object nodes + edges
-        obj_id_map: Dict[int, int] = {}  # obj_idx -> node_id
-        attr_vecs = torch.zeros((len(self.objs), len(self.attrs)))
-        for obj_idx, orig_name, attributes in obj_data:
+        obj_name_to_node_id: Dict[str, int] = {}
+        attr_vecs = torch.zeros((len(obj_data), len(self.attrs)))
+        for obj_row, (obj_idx, orig_name, attributes) in enumerate(obj_data):
             if obj_idx in obj_feats.get("objects", {}):
                 obj_feat = obj_feats["objects"][obj_idx]["feats"]
             else:
@@ -153,9 +167,10 @@ class FullActionGraph(BaseGraph):
             node_id_counter += 1
 
             for attr in attributes:
-                attr_vecs[obj_idx, self.attrs[attr]] = 1.0
+                if attr in self.attrs:
+                    attr_vecs[obj_row, self.attrs[attr]] = 1.0
 
-            if aux_direct_object_ids is None or not obj_idx in aux_direct_object_ids:
+            if orig_name not in aux_obj_to_verbs:
                 text = " ".join(attributes + [objects_atr_map[orig_name]["base_object"]])
                 obj_text_embedding = clip_embeddings[text]
                 obj_node = self.new_object_node(
@@ -163,14 +178,12 @@ class FullActionGraph(BaseGraph):
                     obj_idx=obj_idx,
                     obj_feat=obj_feat,
                     attr=attributes,
-                    attr_feat=attr_vecs[obj_idx],
+                    attr_feat=attr_vecs[obj_row],
                     text_embedding=obj_text_embedding,
                     verb_idx=self.verbs[verb],
                 )
             else:
-                verb_related_to = [
-                    k for k, v in aux_direct_objects_map.items() if orig_name in v
-                ][0]
+                verb_related_to = aux_obj_to_verbs[orig_name][0]
                 text = " ".join(attributes + [objects_atr_map[orig_name]["base_object"]])
                 obj_text_embedding = clip_embeddings[text]
                 obj_node = self.new_object_node(
@@ -178,20 +191,20 @@ class FullActionGraph(BaseGraph):
                     obj_idx=obj_idx,
                     obj_feat=obj_feat,
                     attr=attributes,
-                    attr_feat=attr_vecs[obj_idx],
+                    attr_feat=attr_vecs[obj_row],
                     text_embedding=obj_text_embedding,
                     verb_idx=self.verbs[verb_related_to],
                 )
 
             self.nodes[node_id] = obj_node
-            obj_id_map[obj_idx] = node_id
+            obj_name_to_node_id[orig_name] = node_id
 
-            if direct_object_id is not None and obj_idx == direct_object_id:
+            if direct_object is not None and orig_name == direct_object:
                 self.edges.append(
                     self.rel_edge(verb_id, node_id, rel_idx=self.rels["direct_object"])
                 )
 
-            rels_vec = rels_vecs[obj_idx]
+            rels_vec = rels_vecs[obj_row]
             for rel_idx in torch.where(rels_vec > 0)[0].tolist():
                 if rel_idx == self.rels["direct_object"]:
                     continue
@@ -199,16 +212,13 @@ class FullActionGraph(BaseGraph):
 
         if aux_verb_idxs and aux_direct_objects_map:
             for aux_verb, aux_verb_node_id in aux_verb_node_map.items():
-                if aux_direct_objects_map[aux_verb]:
-                    aux_obj = aux_direct_objects_map[aux_verb][0]
-                    aux_obj_idx = self.objs[
-                        to_singular(objects_atr_map[aux_obj]["base_object"])
-                    ]
-                    if aux_obj_idx in obj_id_map:
+                for aux_obj in aux_direct_objects_map.get(aux_verb, []):
+                    resolved_aux_obj = resolve_object_name(aux_obj, objects_atr_map)
+                    if resolved_aux_obj in obj_name_to_node_id:
                         self.edges.append(
                             self.rel_edge(
                                 aux_verb_node_id,
-                                obj_id_map[aux_obj_idx],
+                                obj_name_to_node_id[resolved_aux_obj],
                                 rel_idx=self.rels["aux_direct_object"],
                             )
                         )

@@ -209,6 +209,27 @@ __marimo__/
 
 outputs
 slurm_outputs
+slurm_scripts
 graph_construction/object_detection_pipeline/Open-GroundingDino/weights
 graph_construction/object_detection_pipeline/Open-GroundingDino/output
 graph_construction/object_detection_pipeline/Open-GroundingDino/tools/GroundingDINO
+MECCANO
+SlowFast
+SlowFast/**/__pycache__/
+SlowFast/checkpoints/
+SlowFast/tensorboard/
+SlowFast/stdout.log
+SlowFast/MECCANO_chkpts/
+rulstm
+
+graph_training/test_graph_construction.py
+graph_training/test.py
+graph_training/create_meccano_next_action_csvs.py
+graph_training/sanity_overfit_next_action.py
+
+meccano_graph_mlp_next_action_hpo.db
+smoke_hpo_review.db
+tmp_optuna.db
+checkpoints
+detectron2_repo
+data

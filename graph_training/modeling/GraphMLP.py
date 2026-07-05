@@ -4,7 +4,6 @@ import torch
 import torch.nn as nn
 from torch.nn import init
 
-
 class AttentionPooling(nn.Module):
     def __init__(self, in_features, out_features, hidden_features=128):
         super().__init__()
@@ -134,16 +133,17 @@ class ActionGraphEmbedding(nn.Module):
         )
 
     def forward(self, g: Dict[str, torch.Tensor]) -> torch.Tensor:
-        clip = torch.from_numpy(g["clip_feat"]).to(self.device).float()
+        clip_feat = g["clip_feat"]
+        clip = torch.as_tensor(clip_feat, device=self.device).float()
 
-        v = self.verb_emb(g["verb_idx"].to(self.device))
+        v = self.verb_emb(g["verb_idx"].to(self.device).long())
         aux_idx = g.get("aux_verb_idx", None)
         if aux_idx is None or aux_idx.numel() == 0:
             aux_tokens = torch.zeros(
                 (0, self.verb_emb.emb.embedding_dim), device=self.device
             )
         else:
-            aux_tokens = self.verb_emb(aux_idx.to(self.device))
+            aux_tokens = self.verb_emb(aux_idx.to(self.device).long())
             if aux_tokens.ndim == 1:
                 aux_tokens = aux_tokens.unsqueeze(0)
         aux_vec = self.aux_pool(aux_tokens) if self.aux_pool else None
@@ -156,7 +156,7 @@ class ActionGraphEmbedding(nn.Module):
                 dtype=obj_feats.dtype,
             )
         else:
-            obj_ids = self.obj_emb(g["obj_indices"].to(self.device))
+            obj_ids = self.obj_emb(g["obj_indices"].to(self.device).long())
             if obj_ids.ndim == 1:
                 obj_ids = obj_ids.unsqueeze(0)
             obj_tokens = torch.cat([obj_feats, obj_ids.to(obj_feats.dtype)], dim=-1)
@@ -183,12 +183,13 @@ class ActionGraphEmbedding(nn.Module):
         rel_emb = self.rel_proj(torch.cat([rel_sum, torch.log1p(rel_sum)], dim=0))
 
         if self.use_triplets:
-            trip = g["triplets"].to(self.device)
+            trip = g["triplets"].long()
             if trip.shape[0] == 0:
                 trip_tokens = torch.zeros(
                     (0, self.verb_emb.emb.embedding_dim), device=self.device
                 )
             else:
+                trip = trip.to(self.device)
                 t = torch.cat(
                     [
                         self.verb_emb(trip[:, 0]),
@@ -239,6 +240,8 @@ class GraphMLP(nn.Module):
         device="cuda",
         use_pool=True,
         use_proj=True,
+        head_dropout=0.5,
+        head_activation="gelu",
     ):
         super().__init__()
         self.device = device
@@ -256,6 +259,8 @@ class GraphMLP(nn.Module):
         self.input_dim = self.action_graph_embedder.out_dim
         self.fc_layers_num = fc_layers_num
         self.n_classes = n_classes
+        self.head_dropout = float(head_dropout)
+        self.head_activation = str(head_activation).lower()
 
         self.pool = use_pool
         self.proj = use_proj
@@ -298,8 +303,16 @@ class GraphMLP(nn.Module):
                 layers.append(
                     nn.Linear(self.final_graph_emb_dim, self.final_graph_emb_dim)
                 )
-                layers.append(nn.Dropout(0.2))
-                layers.append(nn.ReLU())
+                if self.head_dropout > 0:
+                    layers.append(nn.Dropout(self.head_dropout))
+                if self.head_activation == "gelu":
+                    layers.append(nn.GELU())
+                elif self.head_activation == "relu":
+                    layers.append(nn.ReLU())
+                else:
+                    raise ValueError(
+                        f"Unsupported head activation: {self.head_activation}"
+                    )
             layers.append(nn.Linear(self.final_graph_emb_dim, self.n_classes))
             fc = nn.Sequential(*layers)
 
@@ -310,11 +323,16 @@ class GraphMLP(nn.Module):
 
         self.head = fc
 
+    def _graph_to_tensors(self, graph_or_tensors):
+        if isinstance(graph_or_tensors, dict):
+            return graph_or_tensors
+        return graph_or_tensors.to_easg_tensors()
+
     def forward(self, sequence_graphs: List):
         output = []
         for _sequence_graphs in sequence_graphs:
             graph_embs = [
-                self.action_graph_embedder(graph.to_easg_tensors()).to(self.device)
+                self.action_graph_embedder(self._graph_to_tensors(graph)).to(self.device)
                 for graph in _sequence_graphs.values()
             ]
             if len(_sequence_graphs) < self.num_graphs:

@@ -8,17 +8,24 @@ import json
 import os
 from datetime import datetime
 
-import torch
 from dataset.GraphDataset import (
-    GraphDataset,
-    feature_collate_fn,
-    return_train_val_samples,
+    GraphDatasetAria,
 )
-from modeling.GraphMLP import GraphMLP
-from torch.utils.data import DataLoader
+from dataset.aria_aux import return_train_val_samples
 from tqdm import tqdm
 from train.evaluate import build_loss_fn, compute_class_weights, store_model
 from train.train import do_epoch
+from train.utils import (
+    build_graph_mlp,
+    build_optimizer,
+    build_scheduler,
+    graph_relation_count,
+    loader_kwargs,
+    make_loader,
+    resolve_device,
+    save_json,
+    write_training_outputs,
+)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -30,39 +37,24 @@ if __name__ == "__main__":
         config = json.load(f)
 
     mlp_cfg = config["mlp"]
-    action_graph_cfg = mlp_cfg["action_graph_embedder"]
     projector_cfg = mlp_cfg["projector"]
     attention_pool_cfg = mlp_cfg["attention_pooler"]
 
     experiment_name = config["experiment_name"]
     print(f"Running experiment: {experiment_name}")
 
-    device = config["device"]
-    if device == "cuda" and not torch.cuda.is_available():
-        device = "cpu"
+    device = resolve_device(config["device"])
 
     num_epochs = config["training"]["num_epochs"]
     optimizer_name = config["training"]["optimizer"]
     learning_rate = config["training"]["learning_rate"]
     weight_decay = config["training"]["weight_decay"]
     scheduler_factor = config["training"]["scheduler_factor"]
-    criterion_metrics = config["training"]["criterion_metrics"]
 
     batch_size = config["data"]["batch_size"]
-    num_workers = config["data"]["num_workers"]
-    pin_memory = config["data"]["pin_memory"]
 
     fc_layers_num = mlp_cfg["fc_layers_num"]
-    num_graphs = mlp_cfg["num_graphs"]
-
-    use_pool = config["mlp"]["use_pool"]
-    use_proj = config["mlp"]["use_proj"]
-
     graph_emb_dim = projector_cfg["graph_emb_dim"]
-    layer_norm = projector_cfg.get("layer_norm", True)
-    gelu = projector_cfg.get("gelu", True)
-
-    graph_pool_interim_feat = attention_pool_cfg["graph_pool_interim_feat"]
     final_graph_emb_dim = attention_pool_cfg["final_graph_emb_dim"]
 
     train_samples, val_samples, activity_to_idx = return_train_val_samples(
@@ -84,24 +76,18 @@ if __name__ == "__main__":
 
     graph_type = config["data"].get("graph_type", "full")
 
-    if graph_type == "pruned":
-        num_rels = len(rels)
-        if "aux_direct_object" in rels:
-            num_rels -= 1
-        if "aux_verb" in rels:
-            num_rels -= 1
-        num_rels += 1
-    else:
-        num_rels = len(rels)
+    num_rels = graph_relation_count(rels, graph_type, drop_aux=True)
 
     print(f"activity_to_idx : {activity_to_idx}")
     print(f"len(train_samples) : {len(train_samples)}")
     print(f"len(val_samples) : {len(val_samples)}")
     print(f"Graph type : {graph_type}")
 
-    train_dataset = GraphDataset(data_path, train_samples, activity_to_idx, graph_type)
+    train_dataset = GraphDatasetAria(
+        data_path, train_samples, activity_to_idx, graph_type
+    )
 
-    validation_dataset = GraphDataset(
+    validation_dataset = GraphDatasetAria(
         data_path, val_samples, activity_to_idx, graph_type
     )
     
@@ -109,42 +95,18 @@ if __name__ == "__main__":
     assert train_dataset.activity_to_idx == validation_dataset.activity_to_idx
     cls_mapping = train_dataset.activity_to_idx
 
-    train_loader = DataLoader(
+    train_loader = make_loader(
         train_dataset,
         batch_size=batch_size,
         shuffle=True,
-        num_workers=num_workers,
-        pin_memory=pin_memory,
-        collate_fn=feature_collate_fn,
+        **loader_kwargs(config["data"]["num_workers"], config["data"]["pin_memory"]),
     )
-
-    val_loader = DataLoader(
+    val_loader = make_loader(
         validation_dataset,
         batch_size=batch_size,
-        shuffle=False,
-        num_workers=0,
-        pin_memory=False,
-        collate_fn=feature_collate_fn,
     )
-
-    model = GraphMLP(
-        num_graphs=num_graphs,
-        num_verbs=len(verbs),
-        num_objects=len(objs),
-        num_rels=num_rels,
-        num_attrs=len(attrs),
-        n_classes=len(cls_mapping),
-        fc_layers_num=fc_layers_num,
-        graph_emb_dim=graph_emb_dim,
-        final_graph_emb_dim=final_graph_emb_dim,
-        graph_pool_interim_feat=graph_pool_interim_feat,
-        layer_norm=layer_norm,
-        gelu=gelu,
-        device=device,
-        action_graph_kwargs=action_graph_cfg,
-        use_pool=use_pool,
-        use_proj=use_proj,
-    ).to(device)
+    vocab = {"verbs": verbs, "objects": objs, "relationships": rels, "attributes": attrs}
+    model = build_graph_mlp(config, vocab, len(cls_mapping), num_rels, device)
 
     class_weights = None
     if config["training"]["loss"]["ifw"]:
@@ -152,25 +114,9 @@ if __name__ == "__main__":
         print(class_weights)
     loss_func = build_loss_fn(config["training"]["loss"], class_weights)
 
-    if optimizer_name == "adam":
-        opt = torch.optim.Adam(
-            params=model.parameters(),
-            lr=learning_rate,
-            weight_decay=weight_decay,
-        )
-    elif optimizer_name == "sgd":
-        opt = torch.optim.SGD(
-            params=model.parameters(),
-            lr=learning_rate,
-            momentum=0.9,
-            weight_decay=weight_decay,
-        )
+    opt = build_optimizer(model, config["training"])
 
-    scheduler = None
-    if scheduler_factor != 1.0:
-        scheduler = torch.optim.lr_scheduler.MultiplicativeLR(
-            opt, lr_lambda=lambda epoch: scheduler_factor
-        )
+    scheduler = build_scheduler(opt, config["training"])
 
     save_path = os.path.join(
         config["output"]["base_path"],
@@ -197,15 +143,10 @@ if __name__ == "__main__":
         "mlp": config["mlp"],
     }
 
-    with open(os.path.join(save_path, "experiment_config.json"), "w") as f:
-        json.dump(experiment_config, f, indent=2)
-
-    with open(os.path.join(save_path, "class_mapping.json"), "w") as f:
-        json.dump(cls_mapping, f, indent=2)
+    save_json(os.path.join(save_path, "experiment_config.json"), experiment_config)
+    save_json(os.path.join(save_path, "class_mapping.json"), cls_mapping)
 
     model.train()
-    trainable_params = model.get_trainable_params()
-
     epoch_preds = {k: {} for k in range(num_epochs)}
 
     for epoch in tqdm(
@@ -236,18 +177,17 @@ if __name__ == "__main__":
         ]
 
         val_metrics = epoch_result["val"]["eval_metrics"]
-        train_metrics = epoch_result["train"]["eval_metrics"]
-
         print(
             f"\nValidation - Accuracy: {val_metrics['acc']*100:.2f}%, F1: {val_metrics['f1']*100:.2f}%"
         )
 
-        if val_metrics["acc"] > best_epoch_result["acc"]:
-            best_epoch_result["acc"] = val_metrics["acc"]
+        checkpoint_acc_metric = val_metrics.get("top5", val_metrics["acc"])
+        if checkpoint_acc_metric > best_epoch_result["acc"]:
+            best_epoch_result["acc"] = checkpoint_acc_metric
             store_model(
                 net=model, opt=opt, epoch=epoch, save_path=save_path, metric="acc"
             )
-            print(f"New best accuracy model saved: {val_metrics['acc']*100:.2f}%")
+            print(f"New best Top-5 accuracy model saved: {checkpoint_acc_metric*100:.2f}%")
 
         if val_metrics["f1"] > best_epoch_result["f1"]:
             best_epoch_result["f1"] = val_metrics["f1"]
@@ -263,29 +203,7 @@ if __name__ == "__main__":
 
         print(f"Epoch {epoch+1} completed")
 
-    with open(os.path.join(save_path, "training_results.json"), "w") as f:
-        json_results = {}
-        for ep, res in results.items():
-            json_results[str(ep)] = {
-                "train": {
-                    "acc": float(res["train"]["eval_metrics"]["acc"]),
-                    "f1": float(res["train"]["eval_metrics"]["f1"]),
-                },
-                "val": {
-                    "acc": float(res["val"]["eval_metrics"]["acc"]),
-                    "f1": float(res["val"]["eval_metrics"]["f1"]),
-                },
-            }
-        json.dump(json_results, f, indent=2)
+    write_training_outputs(save_path, results, epoch_preds)
 
-    with open(os.path.join(save_path, "per_epoch_predictions.json"), "w") as f:
-        json_results = {}
-        for ep, res in epoch_preds.items():
-            json_results[str(ep)] = {
-                "predictions": res["predictions"],
-                "targets": res["targets"],
-            }
-        json.dump(json_results, f, indent=2)
-
-    print(f"Best validation accuracy: {best_epoch_result['acc']*100:.2f}%")
+    print(f"Best validation Top-5 accuracy: {best_epoch_result['acc']*100:.2f}%")
     print(f"Best validation F1: {best_epoch_result['f1']*100:.2f}%")

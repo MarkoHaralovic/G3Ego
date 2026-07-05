@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "egocentric-video-graph-framework-ar"
+version = "0.1.0"
+description = "Graph-based framework for activity recognition in egocentric videos."
+requires-python = ">=3.10"
+dependencies = [
+  "projectaria_tools",
+  "numpy",
+  "opencv-python",
+  "torch",
+  "torchaudio",
+  "torchvision",
+  "matplotlib",
+  "transformers",
+  "tqdm",
+  "pandas",
+  "pillow",
+  "bitsandbytes",
+  "torch-geometric",
+  "addict",
+  "pycocotools",
+  "supervision",
+  "yapf",
+  "lap",
+  "lapx",
+  "spacy",
+  "scikit-learn",
+  "yacs",
+  "pyyaml",
+  "av",
+  "termcolor",
+  "simplejson",
+  "psutil",
+  "tensorboard",
+  "fvcore",
+  "iopath",
+  "pytorchvideo",
+]
+
+[project.optional-dependencies]
+slowfast-optional = [
+  "detectron2",
+  "fairscale",
+  "moviepy",
+]
