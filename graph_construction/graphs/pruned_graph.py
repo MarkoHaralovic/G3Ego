@@ -30,8 +30,10 @@ class PrunedActionGraph(FullActionGraph):
             del rels["aux_direct_object"]
         if "aux_verb" in rels:
             del rels["aux_verb"]
-        rels["gazed_at"] = len(rels)
+        if "gazed_at" not in rels:
+            rels["gazed_at"] = max(rels.values(), default=-1) + 1
         super(FullActionGraph, self).__init__(node_types, verbs, objs, rels, attrs)
+        self.num_rels = max(self.rels.values(), default=-1) + 1
         self.nodes: Dict[int, Node] = {}
         self.edges: List[Edge] = []
 
@@ -59,7 +61,7 @@ class PrunedActionGraph(FullActionGraph):
                 obj_idx = self.objs[to_singular(obj_info["base_object"])]
                 obj_data.append((obj_idx, obj_name, obj_info["attributes"]))
 
-        rels_vecs = torch.zeros(len(self.objs), len(self.rels))
+        rels_vecs = torch.zeros(len(self.objs), self.num_rels)
         for _item in rels_dict:
             obj_name, rel = list(_item.items())[0]
             if obj_name != gazed_at_object and obj_name != direct_object:
@@ -186,7 +188,7 @@ class PrunedActionGraph(FullActionGraph):
             for n in all_nodes_sorted
         ], dim=0) if len(obj_nodes) > 0 else torch.zeros(0, 1)
         
-        num_rels = len(self.rels)
+        num_rels = self.num_rels
         rels_vecs = torch.zeros((len(obj_nodes), num_rels), dtype=torch.float32)
 
         

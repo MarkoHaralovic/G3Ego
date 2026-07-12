@@ -2,7 +2,6 @@ from transformers import AutoProcessor, AutoModelForImageTextToText, BitsAndByte
 import torch
 from PIL import Image
 
-
 def load_model(
     model_path,
     device="cuda",
@@ -48,7 +47,7 @@ def parse_output(vlm_output):
 
 
 def _build_messages(images, prompt_text):
-    content = [{"type": "image"} for _ in images]
+    content = [{"type": "image", "image": image} for image in images]
     content.append({"type": "text", "text": prompt_text})
     return [{"role": "user", "content": content}]
 
@@ -73,26 +72,14 @@ def _generate(model, processor, pil_images, prompt_text, max_new_tokens):
     return result
 
 
-def recognize_action_single_frame(model, processor, image_np, prompt_text, image_size=336):
+def recognize_action_single_frame(
+    model,
+    processor,
+    image_np,
+    prompt_text,
+    image_size=336,
+    max_new_tokens=100,
+):
     img = Image.fromarray(image_np)
     img.thumbnail((image_size, image_size), Image.Resampling.LANCZOS)
-    return _generate(model, processor, [img], prompt_text, max_new_tokens=100)
-
-
-def recognize_action_local_window(model, processor, images_np, prompt_text, image_size=336):
-    images = [Image.fromarray(img_np) for img_np in images_np]
-    for img in images:
-        img.thumbnail((image_size, image_size), Image.Resampling.LANCZOS)
-    return _generate(model, processor, images, prompt_text, max_new_tokens=100)
-
-
-def recognize_activity(model, processor, images_np, prompt_text, image_size=336):
-    images = [Image.fromarray(img_np) for img_np in images_np]
-    for img in images:
-        img.thumbnail((image_size, image_size), Image.Resampling.LANCZOS)
-
-    try:
-        return _generate(model, processor, images, prompt_text, max_new_tokens=20)
-    except torch.cuda.OutOfMemoryError:
-        torch.cuda.empty_cache()
-        return None
+    return _generate(model, processor, [img], prompt_text, max_new_tokens=max_new_tokens)

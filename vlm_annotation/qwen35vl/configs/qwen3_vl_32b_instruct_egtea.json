@@ -1,0 +1,28 @@
+{
+    "vlm_module": "qwen35vl",
+    "prompts_file": "qwen35vl/prompts.json",
+
+    "model_id": "qwen3vl_32b_instruct",
+    "model_name": "Qwen3-VL-32B-Instruct",
+    "model_path": "Qwen/Qwen3-VL-32B-Instruct",
+    "model_cache_dir": "/projects/eemcs/dmb/ComputerVision/ego_graphs/model_cache/huggingface/transformers",
+
+    "four_bit_quantization": false,
+    "eight_bit_quantization": false,
+
+    "image_size": 448,
+    "max_new_tokens_action": 160,
+    "local_window_for_action_size": 1,
+
+    "videos_root": "/projects/eemcs/dmb/ComputerVision/ego_graphs/vlm_datasets/egtea_gaze/framewise_videos",
+    "output_data_folder": "/projects/eemcs/dmb/ComputerVision/ego_graphs/vlm_datasets/egtea_gaze/vlm_ann_Qwen3-VL-32B-Instruct",
+    "max_frames_per_clip": 32,
+    "overwrite": false,
+
+    "splits": null,
+    "limit_clips": null,
+    "num_shards": null,
+    "shard_index": null,
+
+    "action_recognition_prompt": "egtea_action_recognition_prompt"
+}

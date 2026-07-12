@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from global_feature_training.base_model.sequence_model import ImageSequenceClassificator
-from global_feature_training.data_loading.dataset_split import return_train_val_samples
+from egocentric_video_graph_framework_ar.global_feature_training.data_loading.dataset_split_meccano import return_train_val_samples
 from global_feature_training.data_loading.sequence_dataset import (
     SequenceDataset,
     feature_collate_fn,
