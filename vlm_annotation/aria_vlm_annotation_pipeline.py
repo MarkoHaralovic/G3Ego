@@ -14,7 +14,7 @@ import tqdm
 from projectaria_tools.core.mps.utils import get_eyegaze_point_at_depth
 from projectaria_tools.core.stream_id import StreamId
 from projectaria_tools.projects.aea import AriaEverydayActivitiesDataProvider
-from aux import stream_rgb_vrs_recording, get_every_nth_second_frame
+from auxiliary import stream_rgb_vrs_recording, get_every_nth_second_frame
 
 RGB_STREAM_ID = StreamId("214-1")
 
