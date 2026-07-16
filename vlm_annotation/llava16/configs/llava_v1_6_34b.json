@@ -4,8 +4,8 @@
 
     "model_id": "llava16_34b",
     "model_name": "llava-v1.6-34b-hf",
-    "model_path": "/home/s3758869/models/llava-v1.6-34b-hf",
-    "model_cache_dir": "/home/s3758869/models",
+    "model_path": "/path/to/models/llava-v1.6-34b-hf",
+    "model_cache_dir": "/path/to/models",
 
     "four_bit_quantization": true,
     "eight_bit_quantization": false,
@@ -18,8 +18,8 @@
     "n_frames_for_activity": 10,
     "local_window_for_action_size": 1,
 
-    "input_data_folder": "/deepstore/datasets/dmb/ComputerVision/information_retrieval/AriaEA",
-    "output_data_folder": "/home/s3758869/vlm_datasets/AriaEA_vlm_ann_3_10_llava-v1.6-34b-hf",
+    "input_data_folder": "/path/to/datasets/AriaEA",
+    "output_data_folder": "/path/to/vlm_datasets/AriaEA_vlm_ann_3_10_llava-v1.6-34b-hf",
 
     "action_single_frame_prompt": "action_recognition_prompt",
     "action_window_prompt": "action_window_prompt",

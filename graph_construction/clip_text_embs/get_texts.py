@@ -17,7 +17,7 @@ def to_singular(word: str) -> str:
    return word.lower()
 
 
-ANNOTATION_PATH = "/home/s3758869/vlm_datasets/AriaEA_vlm_ann_3_10_llava-v1.6-34b-hf/"
+ANNOTATION_PATH = "/path/to/vlm_datasets/AriaEA_vlm_ann_3_10_llava-v1.6-34b-hf/"
 ann_file_name="parse_annotation.csv"
 output_file_name = "all_words_enum.json"
 

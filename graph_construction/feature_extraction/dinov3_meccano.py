@@ -174,8 +174,8 @@ if __name__ == "__main__":
     dinov3_model_name_ab = "dinov3_vits16"
 
     SPLITS = ("Train", "Val", "Test")
-    ANNOTATION_BASE = "/projects/eemcs/dmb/ComputerVision/ego_graphs/vlm_datasets/MECCANO_vlm_ann_Qwen3-VL-32B-Instruct-3fps/"
-    IMAGES_BASE = "/deepstore/datasets/dmb/ComputerVision/information_retrieval/MECCANO/dataset/RGB_frames"
+    ANNOTATION_BASE = "/path/to/ego_graphs/vlm_datasets/MECCANO_vlm_ann_Qwen3-VL-32B-Instruct-3fps/"
+    IMAGES_BASE = "/path/to/datasets/MECCANO/dataset/RGB_frames"
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Using device: {device}")

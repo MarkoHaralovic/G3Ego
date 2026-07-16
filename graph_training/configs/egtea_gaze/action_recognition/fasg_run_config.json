@@ -33,14 +33,14 @@
     }
   },
   "data": {
-    "input_path": "/projects/eemcs/dmb/ComputerVision/ego_graphs/vlm_datasets/egtea_gaze/vlm_ann_Qwen3-VL-32B-Instruct",
-    "feature_root": "/projects/eemcs/dmb/ComputerVision/ego_graphs/vlm_datasets/egtea_gaze/framewise_videos/frame_cache_fps_30",
-    "annotations_root": "/projects/eemcs/dmb/ComputerVision/ego_graphs/vlm_datasets/egtea_gaze/annotations",
+    "input_path": "/path/to/ego_graphs/vlm_datasets/egtea_gaze/vlm_ann_Qwen3-VL-32B-Instruct",
+    "feature_root": "/path/to/ego_graphs/vlm_datasets/egtea_gaze/framewise_videos/frame_cache_fps_30",
+    "annotations_root": "/path/to/ego_graphs/vlm_datasets/egtea_gaze/annotations",
     "split_id": 1,
     "val_fraction": 0.1,
     "val_num_samples": 1000,
     "rgb_feature_filename": "frame_features_model_dinov3_vitl16.h5",
-    "easg_cache_path": "/home/s3758869/egocentric_video_graph_framework_ar/outputs/egtea_gaze/action_recognition/easg_tensor_cache",
+    "easg_cache_path": "/path/to/egocentric_video_graph_framework_ar/outputs/egtea_gaze/action_recognition/easg_tensor_cache",
     "batch_size": 16,
     "num_workers": 2,
     "pin_memory": true,
@@ -60,7 +60,7 @@
     }
   },
   "output": {
-    "base_path": "/home/s3758869/egocentric_video_graph_framework_ar/outputs/egtea_gaze/action_recognition"
+    "base_path": "/path/to/egocentric_video_graph_framework_ar/outputs/egtea_gaze/action_recognition"
   },
   "device": "cuda"
 }

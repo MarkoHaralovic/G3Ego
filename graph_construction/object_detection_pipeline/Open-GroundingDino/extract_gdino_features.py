@@ -311,8 +311,8 @@ if __name__ == '__main__':
     
     """
     import torch, pickle
-    orig_path = "/home/s3758869/vlm_datasets/aaa/loc1_script1_seq1_rec1/object_features_dinoT.pkl"
-    new_path = "/home/s3758869/vlm_datasets/aaa/loc1_script1_seq1_rec1/grounding_results.pkl"
+    orig_path = "/path/to/vlm_datasets/aaa/loc1_script1_seq1_rec1/object_features_dinoT.pkl"
+    new_path = "/path/to/vlm_datasets/aaa/loc1_script1_seq1_rec1/grounding_results.pkl"
     with open(orig_path, mode='rb') as f: orig_data=pickle.load(f)
     with open(new_path, mode='rb') as f: new_data=pickle.load(f)
     orig_data['frame_0']['objects'].keys()

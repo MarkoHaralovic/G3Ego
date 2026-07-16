@@ -14,13 +14,13 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from llava16.llava import load_model as load_llava_model, parse_output as parse_llava_output
 
-testing_folder = "/home/s3758869/vlm_datasets/AriaEA_vlm_ann_3_10_llava-v1.6-34b-hf/loc1_script1_seq1_rec1"
+testing_folder = "/path/to/vlm_datasets/AriaEA_vlm_ann_3_10_llava-v1.6-34b-hf/loc1_script1_seq1_rec1"
 frames_path = os.path.join(testing_folder, "frames")
 actions_path = os.path.join(testing_folder, "actions.txt")
 activities_path = os.path.join(testing_folder, "activities.txt")
 annotations_path = os.path.join(testing_folder, "annotations.csv")
 
-VLM_ANNOTATOR = "/home/s3758869/models/llava-v1.6-34b-hf"
+VLM_ANNOTATOR = "/path/to/models/llava-v1.6-34b-hf"
 IMAGE_SIZE_VLM_INPUT = 336
 N_FRAMES_FOR_ACTIVITY = 10
 

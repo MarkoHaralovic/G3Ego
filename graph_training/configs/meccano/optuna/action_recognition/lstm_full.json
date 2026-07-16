@@ -2,7 +2,7 @@
   "study": {
     "study_name": "meccano_ar_lstm_full_hpo",
     "direction": "maximize",
-    "storage": "sqlite:////home/s3758869/egocentric_video_graph_framework_ar/outputs/meccano/action_recognition/optuna/meccano_ar_lstm_full_hpo.db",
+    "storage": "sqlite:////path/to/egocentric_video_graph_framework_ar/outputs/meccano/action_recognition/optuna/meccano_ar_lstm_full_hpo.db",
     "load_if_exists": true,
     "n_trials": 50,
     "sampler": {

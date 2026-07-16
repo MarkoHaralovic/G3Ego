@@ -56,7 +56,7 @@ def _build_split_datasets(config, split_id):
     )
     annotations_root = data_cfg.get(
         "annotations_root",
-        "/projects/eemcs/dmb/ComputerVision/ego_graphs/vlm_datasets/egtea_gaze/annotations",
+        "/path/to/ego_graphs/vlm_datasets/egtea_gaze/annotations",
     )
     train_actions_path = os.path.join(annotations_root, f"train_split{split_id}.txt")
     test_actions_path = os.path.join(annotations_root, f"test_split{split_id}.txt")

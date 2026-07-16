@@ -3,7 +3,7 @@ import pickle
 
 import pandas as pd
 
-INPUT_DATASET_PATH = "/home/s3758869/vlm_datasets/MECCANO_vlm_ann_Qwen3-VL-32B-Instruct-3fps"
+INPUT_DATASET_PATH = "/path/to/vlm_datasets/MECCANO_vlm_ann_Qwen3-VL-32B-Instruct-3fps"
 SPLITS = ("Train", "Val", "Test")
 
 

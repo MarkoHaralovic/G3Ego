@@ -500,7 +500,7 @@ def parse_annotate_folder(input_path):
 
 def main():
     INPUT_DATASET_FOLDER = (
-        "/home/s3758869/vlm_datasets/AriaEA_vlm_ann_3_10_llava-v1.6-34b-hf"
+        "/path/to/vlm_datasets/AriaEA_vlm_ann_3_10_llava-v1.6-34b-hf"
     )
     parse_annotate_folder(INPUT_DATASET_FOLDER)
 

@@ -24,7 +24,7 @@ from global_feature_training.dinov3.dinov3_feature_extraction import (
 from global_feature_training.train.evaluate import store_model
 from global_feature_training.train.train import do_epoch
 
-config_path = "/home/s3758869/egocentric_video_graph_framework_ar/global_feature_training/dinov3/configs/run_config.json"
+config_path = "/path/to/egocentric_video_graph_framework_ar/global_feature_training/dinov3/configs/run_config.json"
 with open(config_path, "r") as f:
     config = json.load(f)
 

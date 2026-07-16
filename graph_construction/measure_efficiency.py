@@ -13,7 +13,7 @@ from graph_training.dataset.GraphDataset import (
 
 graph_type = "full"
 train_samples, val_samples, activity_to_idx = return_train_val_samples(pooling="concat")
-data_path = "/home/s3758869/vlm_datasets/AriaEA_vlm_ann_3_10_llava-v1.6-34b-hf"
+data_path = "/path/to/vlm_datasets/AriaEA_vlm_ann_3_10_llava-v1.6-34b-hf"
 train_dataset = GraphDataset(data_path, train_samples, activity_to_idx, graph_type)
 
 max_shortest_paths = 0.0
@@ -41,7 +41,7 @@ global_effs /= i
    
 graph_type = "pruned"
 train_samples, val_samples, activity_to_idx = return_train_val_samples(pooling="concat")
-data_path = "/home/s3758869/vlm_datasets/AriaEA_vlm_ann_3_10_llava-v1.6-34b-hf"
+data_path = "/path/to/vlm_datasets/AriaEA_vlm_ann_3_10_llava-v1.6-34b-hf"
 train_dataset = GraphDataset(data_path, train_samples, activity_to_idx, graph_type)
 
 max_shortest_paths_pruned = 0.0

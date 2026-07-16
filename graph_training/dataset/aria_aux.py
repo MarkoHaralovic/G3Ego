@@ -68,7 +68,7 @@ ignored_nouns = [
 noun_replacement = "other"
 skip_labels = {"na", "not_annotated"}
 
-DATASET_PATH = "/home/s3758869/vlm_datasets/AriaEA_vlm_ann_3_10_llava-v1.6-34b-hf"
+DATASET_PATH = "/path/to/vlm_datasets/AriaEA_vlm_ann_3_10_llava-v1.6-34b-hf"
 model_name = "dinov3h16+"
 pooling = "concat"
 

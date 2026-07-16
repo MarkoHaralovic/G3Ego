@@ -33,12 +33,12 @@
     }
   },
   "data": {
-    "input_path" : "/home/s3758869/vlm_datasets/MECCANO_vlm_ann_Qwen3-VL-32B-Instruct-3fps",
-    "metadata_root" : "/home/s3758869/vlm_datasets/MECCANO_vlm_ann_Qwen3-VL-32B-Instruct-3fps",
-    "train_actions_csv": "/deepstore/datasets/dmb/ComputerVision/information_retrieval/MECCANO/dataset/MECCANO_train_actions.csv",
-    "val_actions_csv": "/deepstore/datasets/dmb/ComputerVision/information_retrieval/MECCANO/dataset/MECCANO_val_actions.csv",
-    "test_actions_csv": "/deepstore/datasets/dmb/ComputerVision/information_retrieval/MECCANO/dataset/MECCANO_test_actions.csv",
-    "easg_cache_path": "/home/s3758869/vlm_datasets/MECCANO_vlm_ann_Qwen3-VL-32B-Instruct-3fps/easg_tensor_cache",
+    "input_path" : "/path/to/vlm_datasets/MECCANO_vlm_ann_Qwen3-VL-32B-Instruct-3fps",
+    "metadata_root" : "/path/to/vlm_datasets/MECCANO_vlm_ann_Qwen3-VL-32B-Instruct-3fps",
+    "train_actions_csv": "/path/to/datasets/MECCANO/dataset/MECCANO_train_actions.csv",
+    "val_actions_csv": "/path/to/datasets/MECCANO/dataset/MECCANO_val_actions.csv",
+    "test_actions_csv": "/path/to/datasets/MECCANO/dataset/MECCANO_test_actions.csv",
+    "easg_cache_path": "/path/to/vlm_datasets/MECCANO_vlm_ann_Qwen3-VL-32B-Instruct-3fps/easg_tensor_cache",
     "batch_size": 16,
     "num_workers": 2,
     "pin_memory": false,
@@ -58,7 +58,7 @@
     }
   },
   "output": {
-    "base_path": "/home/s3758869/egocentric_video_graph_framework_ar/outputs/meccano/graph_mlp_baseline"
+    "base_path": "/path/to/egocentric_video_graph_framework_ar/outputs/meccano/graph_mlp_baseline"
   },
   "device": "cuda"
 }

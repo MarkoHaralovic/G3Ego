@@ -12,8 +12,8 @@ from tqdm import tqdm
 import json
 import pandas as pd
 
-ANNOTATION_BASE = "/home/s3758869/vlm_datasets/MECCANO_vlm_ann_Qwen3-VL-32B-Instruct-3fps"
-IMAGES_BASE = "/deepstore/datasets/dmb/ComputerVision/information_retrieval/MECCANO/dataset/RGB_frames"
+ANNOTATION_BASE = "/path/to/vlm_datasets/MECCANO_vlm_ann_Qwen3-VL-32B-Instruct-3fps"
+IMAGES_BASE = "/path/to/datasets/MECCANO/dataset/RGB_frames"
 # SPLITS = ("Train", "Val", "Test")
 SPLITS = ("Val")
 

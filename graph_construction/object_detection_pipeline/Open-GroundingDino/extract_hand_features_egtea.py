@@ -27,15 +27,15 @@ from tqdm import tqdm
 
 
 DEFAULT_ANNOTATION_ROOT = Path(
-    "/home/s3758869/egocentric_video_graph_framework_ar/data/egtea_gaze_plus/"
+    "/path/to/egocentric_video_graph_framework_ar/data/egtea_gaze_plus/"
     "vlm_ann_Qwen3-VL-32B-Instruct"
 )
 DEFAULT_FRAMES_ROOT = Path(
-    "/projects/eemcs/dmb/ComputerVision/ego_graphs/vlm_datasets/egtea_gaze/"
+    "/path/to/ego_graphs/vlm_datasets/egtea_gaze/"
     "framewise_videos"
 )
 DEFAULT_HAND_MASK_ROOT = Path(
-    "/projects/eemcs/dmb/ComputerVision/ego_graphs/vlm_datasets/egtea_gaze/hand_masks"
+    "/path/to/ego_graphs/vlm_datasets/egtea_gaze/hand_masks"
 )
 
 tools_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tools")

@@ -5,7 +5,7 @@
     "model_id": "qwen3vl_32b_instruct",
     "model_name": "Qwen3-VL-32B-Instruct",
     "model_path": "Qwen/Qwen3-VL-32B-Instruct",
-    "model_cache_dir": "/projects/eemcs/dmb/ComputerVision/ego_graphs/model_cache/huggingface/transformers",
+    "model_cache_dir": "/path/to/ego_graphs/model_cache/huggingface/transformers",
 
     "four_bit_quantization": false,
     "eight_bit_quantization": false,
@@ -14,8 +14,8 @@
     "max_new_tokens_action": 160,
     "local_window_for_action_size": 1,
 
-    "videos_root": "/projects/eemcs/dmb/ComputerVision/ego_graphs/vlm_datasets/egtea_gaze/framewise_videos",
-    "output_data_folder": "/projects/eemcs/dmb/ComputerVision/ego_graphs/vlm_datasets/egtea_gaze/vlm_ann_Qwen3-VL-32B-Instruct",
+    "videos_root": "/path/to/ego_graphs/vlm_datasets/egtea_gaze/framewise_videos",
+    "output_data_folder": "/path/to/ego_graphs/vlm_datasets/egtea_gaze/vlm_ann_Qwen3-VL-32B-Instruct",
     "max_frames_per_clip": 32,
     "overwrite": false,
 

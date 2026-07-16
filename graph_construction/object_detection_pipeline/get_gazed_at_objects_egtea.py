@@ -7,7 +7,7 @@ import pandas as pd
 from pandas.errors import EmptyDataError
 
 DEFAULT_INPUT_ROOT = Path(
-    "/projects/eemcs/dmb/ComputerVision/ego_graphs/vlm_datasets/egtea_gaze/"
+    "/path/to/ego_graphs/vlm_datasets/egtea_gaze/"
     "vlm_ann_Qwen3-VL-32B-Instruct"
 )
 

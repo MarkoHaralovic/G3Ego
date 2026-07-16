@@ -2,19 +2,19 @@
   "experiment_name": "dinov3_global_feature_baseline",
   "model": {
     "name": "dinov3h16+",
-    "dinov3_model_path": "/home/s3758869/models/dinov3-vith16plus-pretrain-lvd1689m",
-    "clip_model_path": "/home/s3758869/models/clip-vit-base-patch32",
-    "dino_cache_dir": "/home/s3758869/models",
-    "clip_cache_dir": "/home/s3758869/models",
+    "dinov3_model_path": "/path/to/models/dinov3-vith16plus-pretrain-lvd1689m",
+    "clip_model_path": "/path/to/models/clip-vit-base-patch32",
+    "dino_cache_dir": "/path/to/models",
+    "clip_cache_dir": "/path/to/models",
     "linear_layer_input_dim": 1280, 
     "pooling": "concat",
     "use_precomputed_features": true,
     "use_text_features": false
   },
   "data": {
-    "precomputed_features_folder": "/home/s3758869/vlm_datasets/AriaEA_vlm_ann_3_10_llava-v1.6-34b-hf",
-    "split_json_path" : "/home/s3758869/vlm_datasets/AriaEA_vlm_ann_3_10_llava-v1.6-34b-hf/training_data_split_train_0.8_val_0.2.json",
-    "activity_to_idx_path": "/home/s3758869/vlm_datasets/AriaEA_vlm_ann_3_10_llava-v1.6-34b-hf/activities.json",
+    "precomputed_features_folder": "/path/to/vlm_datasets/AriaEA_vlm_ann_3_10_llava-v1.6-34b-hf",
+    "split_json_path" : "/path/to/vlm_datasets/AriaEA_vlm_ann_3_10_llava-v1.6-34b-hf/training_data_split_train_0.8_val_0.2.json",
+    "activity_to_idx_path": "/path/to/vlm_datasets/AriaEA_vlm_ann_3_10_llava-v1.6-34b-hf/activities.json",
     "batch_size": 8,
     "num_workers": 4,
     "pin_memory": true
@@ -29,7 +29,7 @@
     "criterion_metrics": ["f1", "acc"]
   },
   "output": {
-    "base_path": "/home/s3758869/egocentric_video_graph_framework_ar/outputs/dinov3_global_feature_baseline"
+    "base_path": "/path/to/egocentric_video_graph_framework_ar/outputs/dinov3_global_feature_baseline"
   },
   "device": "cpu"
 }

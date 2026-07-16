@@ -2,7 +2,7 @@
   "study": {
     "study_name": "meccano_next_action_mlp_pruned_f1_hpo",
     "direction": "maximize",
-    "storage": "sqlite:////home/s3758869/egocentric_video_graph_framework_ar/outputs/meccano/next_action_prediction/optuna/meccano_next_action_mlp_pruned_f1_hpo.db",
+    "storage": "sqlite:////path/to/egocentric_video_graph_framework_ar/outputs/meccano/next_action_prediction/optuna/meccano_next_action_mlp_pruned_f1_hpo.db",
     "load_if_exists": true,
     "n_trials": 50,
     "sampler": {"name": "TPESampler", "seed": 53},

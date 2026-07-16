@@ -734,7 +734,7 @@ def parse_annotate_folder(input_path):
         json.dump(statistics, f, indent=2)
 
 def main():
-    input_dataset_folder = "/home/s3758869/vlm_datasets/MECCANO_vlm_ann_Qwen3-VL-32B-Instruct-3fps"
+    input_dataset_folder = "/path/to/vlm_datasets/MECCANO_vlm_ann_Qwen3-VL-32B-Instruct-3fps"
     # parse_annotate_folder(os.path.join(input_dataset_folder, "Val"))
     parse_annotate_folder(os.path.join(input_dataset_folder, "Test"))
     parse_annotate_folder(os.path.join(input_dataset_folder, "Train"))

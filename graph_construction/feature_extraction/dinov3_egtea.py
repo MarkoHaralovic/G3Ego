@@ -24,7 +24,7 @@ from transformers import AutoModel
 from graph_construction.feature_extraction.sampling import uniform_sample_frames
 
 
-REPO_ROOT = Path("/home/s3758869/egocentric_video_graph_framework_ar")
+REPO_ROOT = Path("/path/to/egocentric_video_graph_framework_ar")
 DEFAULT_VIDEOS_ROOT = REPO_ROOT / "data/videos"
 DEFAULT_MODEL_ID = "facebook/dinov3-vitl16-pretrain-lvd1689m"
 DEFAULT_MODEL_NAME = "dinov3_vitl16"

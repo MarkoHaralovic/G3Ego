@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pandas as pd
 
-INPUT_DATASET_PATH = "/home/s3758869/vlm_datasets/AriaEA_vlm_ann_3_10_llava-v1.6-34b-hf"
+INPUT_DATASET_PATH = "/path/to/vlm_datasets/AriaEA_vlm_ann_3_10_llava-v1.6-34b-hf"
 
 
 def populate_gazed_at_from_pickle(input_dataset_path):

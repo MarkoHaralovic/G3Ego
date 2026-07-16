@@ -4,7 +4,7 @@ import json
 import pickle
 import torch
 
-ANNOTATION_PATH = "/home/s3758869/vlm_datasets/AriaEA_vlm_ann_3_10_llava-v1.6-34b-hf/"
+ANNOTATION_PATH = "/path/to/vlm_datasets/AriaEA_vlm_ann_3_10_llava-v1.6-34b-hf/"
 input_file_name = "all_words_enum.json"
 output_file_name = "clip_text_features.pkl"
 
@@ -36,8 +36,8 @@ def get_clip_text_encoder(model_name, cache_dir=None):
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-MODEL_CACHE_DIR = "/home/s3758869/models"
-clip_model_path = "/home/s3758869/models/clip-vit-base-patch32"
+MODEL_CACHE_DIR = "/path/to/models"
+clip_model_path = "/path/to/models/clip-vit-base-patch32"
 
 tokenizer, text_encoder, _ = get_clip_text_encoder(
    clip_model_path, cache_dir=MODEL_CACHE_DIR
